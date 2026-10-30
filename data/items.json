@@ -5,8 +5,8 @@
     "description": "Sofá confortável, pouco uso. Tecido cinza claro, estrutura firme. Retirada em Porto Alegre (combinamos o horário).",
     "price": 650,
     "photos": [
-      "/uploads/sofa-1.png",
-      "/uploads/sofa-2.png"
+      "/samples/sofa-1.png",
+      "/samples/sofa-2.png"
     ],
     "status": "available",
     "createdAt": "2026-10-30T14:31:36.184Z",
@@ -18,7 +18,7 @@
     "description": "Mesa para 4 pessoas, tampo de madeira. Alguns sinais leves de uso. Ideal pra quem está montando a casa.",
     "price": 420,
     "photos": [
-      "/uploads/mesa-1.png"
+      "/samples/mesa-1.png"
     ],
     "status": "available",
     "createdAt": "2026-10-30T14:31:36.184Z",
