@@ -10,7 +10,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +47,11 @@ export function BuyDialog({
     setLoading(false);
   }
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) reset();
+  }
+
   async function submitOrder() {
     if (!paymentMethod) {
       setError("Escolha Pix ou cartão.");
@@ -80,155 +84,156 @@ export function BuyDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) reset();
-      }}
-    >
-      <DialogTrigger
+    <>
+      <Button
+        type="button"
+        size="lg"
         disabled={disabled}
-        render={
-          <Button size="lg" disabled={disabled} className="w-full sm:w-auto" />
-        }
+        className="w-full sm:w-auto"
+        onClick={() => handleOpenChange(true)}
       >
         Comprar
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        {step === "details" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Reservar {title}</DialogTitle>
-              <DialogDescription>
-                Estoque de 1 unidade. Conta pra gente quem é você e como te
-                encontramos — {formatBRL(price)}.
-              </DialogDescription>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!buyerName.trim() || !buyerContact.trim()) {
-                  setError("Preencha nome e contato.");
-                  return;
-                }
-                setError(null);
-                setStep("payment");
-              }}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="buyerName">Seu nome</Label>
-                <Input
-                  id="buyerName"
-                  value={buyerName}
-                  onChange={(event) => setBuyerName(event.target.value)}
-                  placeholder="Como te chamamos"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="buyerContact">WhatsApp ou e-mail</Label>
-                <Input
-                  id="buyerContact"
-                  value={buyerContact}
-                  onChange={(event) => setBuyerContact(event.target.value)}
-                  placeholder="Pra combinarmos a retirada"
-                  required
-                />
+      </Button>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          {step === "details" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Reservar {title}</DialogTitle>
+                <DialogDescription>
+                  Estoque de 1 unidade. Conta pra gente quem é você e como te
+                  encontramos — {formatBRL(price)}.
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!buyerName.trim() || !buyerContact.trim()) {
+                    setError("Preencha nome e contato.");
+                    return;
+                  }
+                  setError(null);
+                  setStep("payment");
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="buyerName">Seu nome</Label>
+                  <Input
+                    id="buyerName"
+                    value={buyerName}
+                    onChange={(event) => setBuyerName(event.target.value)}
+                    placeholder="Como te chamamos"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="buyerContact">WhatsApp ou e-mail</Label>
+                  <Input
+                    id="buyerContact"
+                    value={buyerContact}
+                    onChange={(event) => setBuyerContact(event.target.value)}
+                    placeholder="Pra combinarmos a retirada"
+                    required
+                  />
+                </div>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <Button type="submit" className="w-full">
+                  Continuar para o pagamento
+                </Button>
+              </form>
+            </>
+          )}
+
+          {step === "payment" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Como prefere pagar?</DialogTitle>
+                <DialogDescription>
+                  O front já está pronto. A integração de pagamento (Pix/cartão)
+                  entra depois — por enquanto isso reserva o item pra você.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("pix")}
+                  className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
+                    paymentMethod === "pix"
+                      ? "border-[var(--ocean)] bg-[var(--mist)]"
+                      : "border-[var(--line)] hover:border-[var(--ocean)]/50"
+                  }`}
+                >
+                  <QrCode className="size-5 text-[var(--ocean)]" />
+                  <span>
+                    <span className="block font-medium">Pix</span>
+                    <span className="text-sm text-muted-foreground">
+                      Pagamento instantâneo
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("card")}
+                  className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
+                    paymentMethod === "card"
+                      ? "border-[var(--ocean)] bg-[var(--mist)]"
+                      : "border-[var(--line)] hover:border-[var(--ocean)]/50"
+                  }`}
+                >
+                  <CreditCard className="size-5 text-[var(--ocean)]" />
+                  <span>
+                    <span className="block font-medium">Cartão</span>
+                    <span className="text-sm text-muted-foreground">
+                      Crédito ou débito
+                    </span>
+                  </span>
+                </button>
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full">
-                Continuar para o pagamento
-              </Button>
-            </form>
-          </>
-        )}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setStep("details")}
+                >
+                  Voltar
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1"
+                  disabled={loading}
+                  onClick={submitOrder}
+                >
+                  {loading ? "Reservando…" : "Confirmar reserva"}
+                </Button>
+              </div>
+            </>
+          )}
 
-        {step === "payment" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Como prefere pagar?</DialogTitle>
-              <DialogDescription>
-                O front já está pronto. A integração de pagamento (Pix/cartão)
-                entra depois — por enquanto isso reserva o item pra você.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-3">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("pix")}
-                className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
-                  paymentMethod === "pix"
-                    ? "border-[var(--ocean)] bg-[var(--mist)]"
-                    : "border-[var(--line)] hover:border-[var(--ocean)]/50"
-                }`}
-              >
-                <QrCode className="size-5 text-[var(--ocean)]" />
-                <span>
-                  <span className="block font-medium">Pix</span>
-                  <span className="text-sm text-muted-foreground">
-                    Pagamento instantâneo
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("card")}
-                className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
-                  paymentMethod === "card"
-                    ? "border-[var(--ocean)] bg-[var(--mist)]"
-                    : "border-[var(--line)] hover:border-[var(--ocean)]/50"
-                }`}
-              >
-                <CreditCard className="size-5 text-[var(--ocean)]" />
-                <span>
-                  <span className="block font-medium">Cartão</span>
-                  <span className="text-sm text-muted-foreground">
-                    Crédito ou débito
-                  </span>
-                </span>
-              </button>
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <div className="flex gap-2">
+          {step === "done" && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Item reservado pra você</DialogTitle>
+                <DialogDescription>
+                  Recebemos seu interesse em <strong>{title}</strong> via{" "}
+                  {paymentMethod === "pix" ? "Pix" : "cartão"}. Em breve te
+                  chamamos no contato informado para combinar a retirada e
+                  finalizar o pagamento.
+                </DialogDescription>
+              </DialogHeader>
               <Button
                 type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => setStep("details")}
+                className="w-full"
+                onClick={() => handleOpenChange(false)}
               >
-                Voltar
+                Fechar
               </Button>
-              <Button
-                type="button"
-                className="flex-1"
-                disabled={loading}
-                onClick={submitOrder}
-              >
-                {loading ? "Reservando…" : "Confirmar reserva"}
-              </Button>
-            </div>
-          </>
-        )}
-
-        {step === "done" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Item reservado pra você</DialogTitle>
-              <DialogDescription>
-                Recebemos seu interesse em <strong>{title}</strong> via{" "}
-                {paymentMethod === "pix" ? "Pix" : "cartão"}. Em breve te
-                chamamos no contato informado para combinar a retirada e
-                finalizar o pagamento.
-              </DialogDescription>
-            </DialogHeader>
-            <Button type="button" className="w-full" onClick={() => setOpen(false)}>
-              Fechar
-            </Button>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
