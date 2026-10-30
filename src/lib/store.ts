@@ -154,6 +154,34 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   return order;
 }
 
+export async function updateOrderStatus(
+  id: string,
+  status: Order["status"],
+): Promise<Order | null> {
+  await releaseExpiredReservations();
+  const orders = await readJson<Order[]>(ordersPath);
+  const index = orders.findIndex((order) => order.id === id);
+  if (index < 0) return null;
+
+  const current = orders[index];
+  if (current.status === status) return current;
+
+  const updated: Order = { ...current, status };
+  orders[index] = updated;
+  await writeJson(ordersPath, orders);
+
+  if (status === "confirmed") {
+    await updateItem(current.itemId, { status: "sold" });
+  } else if (status === "cancelled") {
+    const item = await getItem(current.itemId);
+    if (item && item.status === "reserved") {
+      await updateItem(current.itemId, { status: "available" });
+    }
+  }
+
+  return updated;
+}
+
 export function assertAdmin(request: Request) {
   const expected = process.env.ADMIN_SECRET?.trim();
   const header = request.headers.get("x-admin-secret");

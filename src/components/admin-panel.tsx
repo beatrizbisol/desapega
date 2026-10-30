@@ -15,7 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { deliveryLabel, formatBRL, paymentLabel, statusLabel } from "@/lib/format";
+import {
+  deliveryLabel,
+  formatBRL,
+  formatDateTime,
+  orderStatusLabel,
+  paymentLabel,
+  statusLabel,
+} from "@/lib/format";
 import { formatPhoneInput } from "@/lib/phone";
 import type { Item, ItemStatus, Order } from "@/lib/types";
 
@@ -155,6 +162,21 @@ export function AdminPanel() {
     if (!response.ok) {
       const data = await response.json();
       setError(data.error || "Não foi possível excluir.");
+      return;
+    }
+    await loadData();
+  }
+
+  async function updateOrder(id: string, status: Order["status"]) {
+    setError(null);
+    const response = await fetch(`/api/orders/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ status }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      setError(data.error || "Não foi possível atualizar o pedido.");
       return;
     }
     await loadData();
@@ -349,6 +371,10 @@ export function AdminPanel() {
         <h2 className="font-[family-name:var(--font-display)] text-2xl text-[var(--ocean-ink)]">
           Pedidos / reservas
         </h2>
+        <p className="text-sm text-[var(--ink-soft)]">
+          Aqui entram os dados do formulário de compra: nome, celular, pagamento
+          e entrega.
+        </p>
         {orders.length === 0 ? (
           <p className="text-[var(--ink-soft)]">Nenhuma reserva ainda.</p>
         ) : (
@@ -356,14 +382,74 @@ export function AdminPanel() {
             {orders.map((order) => (
               <div
                 key={order.id}
-                className="rounded-xl border border-[var(--line)] bg-white p-4"
+                className="space-y-3 rounded-xl border border-[var(--line)] bg-white p-4"
               >
-                <p className="font-medium text-[var(--ocean-ink)]">{order.itemTitle}</p>
-                <p className="mt-1 text-sm text-[var(--ink-soft)]">
-                  {order.buyerName} · {formatPhoneInput(order.buyerPhone)} ·{" "}
-                  {paymentLabel(order.paymentMethod)} ·{" "}
-                  {deliveryLabel(order.deliveryMethod)}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-[var(--ocean-ink)]">
+                    {order.itemTitle}
+                  </p>
+                  <Badge variant="secondary">
+                    {orderStatusLabel(order.status)}
+                  </Badge>
+                </div>
+                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-[var(--ink-soft)]">Nome</dt>
+                    <dd className="font-medium text-[var(--ocean-ink)]">
+                      {order.buyerName}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--ink-soft)]">Celular</dt>
+                    <dd className="font-medium text-[var(--ocean-ink)]">
+                      <a
+                        className="underline-offset-2 hover:underline"
+                        href={`https://wa.me/55${order.buyerPhone}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {formatPhoneInput(order.buyerPhone)}
+                      </a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--ink-soft)]">Pagamento</dt>
+                    <dd className="font-medium text-[var(--ocean-ink)]">
+                      {paymentLabel(order.paymentMethod)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--ink-soft)]">Entrega</dt>
+                    <dd className="font-medium text-[var(--ocean-ink)]">
+                      {deliveryLabel(order.deliveryMethod)}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-[var(--ink-soft)]">Pedido em</dt>
+                    <dd className="font-medium text-[var(--ocean-ink)]">
+                      {formatDateTime(order.createdAt)}
+                    </dd>
+                  </div>
+                </dl>
+                {order.status === "pending" && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => updateOrder(order.id, "confirmed")}
+                    >
+                      Marcar como pago / vendido
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateOrder(order.id, "cancelled")}
+                    >
+                      Cancelar e liberar item
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

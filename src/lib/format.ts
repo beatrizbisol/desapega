@@ -32,3 +32,24 @@ export function deliveryLabel(method: DeliveryMethod): string {
 export function paymentLabel(method: "pix" | "card"): string {
   return method === "pix" ? "Pix" : "Cartão";
 }
+
+export function orderStatusLabel(
+  status: "pending" | "confirmed" | "cancelled",
+): string {
+  switch (status) {
+    case "pending":
+      return "Aguardando pagamento";
+    case "confirmed":
+      return "Confirmado";
+    case "cancelled":
+      return "Cancelado / expirado";
+  }
+}
+
+export function formatDateTime(iso: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(iso));
+}
