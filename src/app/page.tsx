@@ -1,0 +1,41 @@
+import { Hero } from "@/components/hero";
+import { ItemGrid } from "@/components/item-grid";
+import { SiteHeader } from "@/components/site-header";
+import { Story } from "@/components/story";
+import { listItems } from "@/lib/store";
+
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const items = await listItems();
+
+  return (
+    <main className="flex-1">
+      <SiteHeader />
+      <Hero />
+      <Story />
+      <section id="itens" className="bg-[var(--foam)]">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+          <div className="mb-10 max-w-2xl">
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--ocean)]">
+              Vitrine
+            </p>
+            <h2 className="mt-3 font-[family-name:var(--font-display)] text-3xl text-[var(--ocean-ink)] sm:text-4xl">
+              Itens com história — e só uma unidade de cada
+            </h2>
+            <p className="mt-3 text-[var(--ink-soft)]">
+              Clique na foto ou no título para ver detalhes, fotos e comprar.
+            </p>
+          </div>
+          <ItemGrid items={items} />
+        </div>
+      </section>
+      <footer className="border-t border-[var(--line)] bg-white">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-8 text-sm text-[var(--ink-soft)] sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <p>Beatriz &amp; Filipe · POA → Fortaleza</p>
+          <p>Retirada combinada pessoalmente com quem reservar.</p>
+        </div>
+      </footer>
+    </main>
+  );
+}
