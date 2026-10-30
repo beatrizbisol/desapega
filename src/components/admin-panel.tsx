@@ -171,8 +171,7 @@ export function AdminPanel() {
             Cadastro de itens
           </h1>
           <p className="mt-2 text-sm text-[var(--ink-soft)]">
-            Área privada para Beatriz e Filipe. Use a senha do arquivo{" "}
-            <code>.env</code> (<code>ADMIN_SECRET</code>).
+            Área privada. Informe a senha de acesso.
           </p>
         </div>
         <div className="space-y-2">

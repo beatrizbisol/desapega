@@ -155,9 +155,9 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 }
 
 export function assertAdmin(request: Request) {
-  const expected = process.env.ADMIN_SECRET || "mudanca2026";
+  const expected = process.env.ADMIN_SECRET?.trim();
   const header = request.headers.get("x-admin-secret");
-  if (header !== expected) {
+  if (!expected || header !== expected) {
     throw new Error("UNAUTHORIZED");
   }
 }
