@@ -10,7 +10,7 @@
     ],
     "status": "available",
     "createdAt": "2026-10-30T18:00:06.000Z",
-    "updatedAt": "2026-10-30T17:55:57.917Z"
+    "updatedAt": "2026-10-30T18:10:00.000Z"
   },
   {
     "id": "cadeira-escritorio-mesh",
@@ -20,16 +20,17 @@
     "photos": [
       "/items/cadeira/01.jpg",
       "/items/cadeira/02.jpg",
-      "/items/cadeira/03.jpg"
+      "/items/cadeira/03.jpg",
+      "/items/cadeira/04.jpg"
     ],
     "status": "available",
     "createdAt": "2026-10-30T18:00:05.000Z",
-    "updatedAt": "2026-10-30T18:00:05.000Z"
+    "updatedAt": "2026-10-30T18:10:00.000Z"
   },
   {
     "id": "comoda-branca-4-gavetas",
     "title": "Cômoda branca com 4 gavetas",
-    "description": "Cômoda moderna branca com 4 gavetas, puxadores e pés em madeira clara. Corrediças metálicas; as gavetas abrem com suavidade.\n\nEstado geral bom. Há um ponto breve de madeira estufada no canto superior direito da lateral (mostrado na última foto) — não compromete o uso das gavetas.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
+    "description": "Cômoda moderna branca com 4 gavetas, puxadores e pés em madeira clara. Corrediças metálicas; as gavetas abrem com suavidade.\n\nEstado geral bom. Há um ponto breve de madeira estufada no canto superior direito da lateral (mostrado na última foto) — não compromete o uso das gavetas.\n\n⚠️ Aviso: a TV e demais itens pessoais nas fotos não estão inclusos. A venda é apenas do móvel.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
     "price": 250,
     "photos": [
       "/items/comoda/01.jpg",
@@ -39,12 +40,12 @@
     ],
     "status": "available",
     "createdAt": "2026-10-30T18:00:04.000Z",
-    "updatedAt": "2026-10-30T18:00:04.000Z"
+    "updatedAt": "2026-10-30T18:10:00.000Z"
   },
   {
     "id": "penteadeira-politorno",
     "title": "Penteadeira branca Politorno com espelho",
-    "description": "Penteadeira Politorno branca, design minimalista, com espelho amplo e 1 gaveta larga com corrediças metálicas telescópicas.\n\nAcabamento limpo, bem conservada. Ótima para quarto ou camarim compacto. Objetos das fotos (perfumes, organizadores etc.) não acompanham.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
+    "description": "Penteadeira Politorno branca, design minimalista, com espelho amplo e 1 gaveta larga com corrediças metálicas telescópicas.\n\nAcabamento limpo, bem conservada. Ótima para quarto ou camarim compacto.\n\n⚠️ Aviso: perfumes, maquiagens, bijuterias, placa decorativa e demais itens pessoais nas fotos não estão inclusos. A venda é apenas do móvel.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
     "price": 220,
     "photos": [
       "/items/penteadeira/01.jpg",
@@ -53,7 +54,7 @@
     ],
     "status": "available",
     "createdAt": "2026-10-30T18:00:03.000Z",
-    "updatedAt": "2026-10-30T18:00:03.000Z"
+    "updatedAt": "2026-10-30T18:10:00.000Z"
   },
   {
     "id": "midea-lava-seca-11kg",
@@ -63,17 +64,16 @@
     "photos": [
       "/items/maquina/01.jpg",
       "/items/maquina/02.jpg",
-      "/items/maquina/03-selo.jpg",
-      "/items/maquina/04-selo.jpg"
+      "/items/maquina/03-selo.jpg"
     ],
     "status": "available",
     "createdAt": "2026-10-30T18:00:02.000Z",
-    "updatedAt": "2026-10-30T18:00:02.000Z"
+    "updatedAt": "2026-10-30T18:10:00.000Z"
   },
   {
     "id": "sapateira-branca",
     "title": "Sapateira branca com 2 gavetões",
-    "description": "Sapateira vertical branca com tampo em tom madeira clara: 1 gaveta rasa no topo para itens pequenos e 2 gavetões basculantes para sapatos (prateleiras internas).\n\nDesign compacto, bom para hall ou quarto. Em bom estado; pode ter marcas leves de uso no painel. Sapatos e objetos das fotos não acompanham.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
+    "description": "Sapateira vertical branca com tampo em tom madeira clara: 1 gaveta rasa no topo para itens pequenos e 2 gavetões basculantes para sapatos (prateleiras internas).\n\nDesign compacto, bom para hall ou quarto. Em bom estado; pode ter marcas leves de uso no painel.\n\n⚠️ Aviso: sapatos, objetos em cima da sapateira e conteúdo da gaveta nas fotos não estão inclusos. A venda é apenas do móvel.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
     "price": 180,
     "photos": [
       "/items/sapateira/01.jpg",
@@ -82,6 +82,6 @@
     ],
     "status": "available",
     "createdAt": "2026-10-30T18:00:01.000Z",
-    "updatedAt": "2026-10-30T18:00:01.000Z"
+    "updatedAt": "2026-10-30T18:10:00.000Z"
   }
 ]
