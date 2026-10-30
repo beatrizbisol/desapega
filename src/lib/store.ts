@@ -6,6 +6,9 @@ const dataDir = path.join(process.cwd(), "data");
 const itemsPath = path.join(dataDir, "items.json");
 const ordersPath = path.join(dataDir, "orders.json");
 
+/** Pending reservations expire after 24h without payment confirmation. */
+export const RESERVATION_MS = 24 * 60 * 60 * 1000;
+
 async function ensureDataFiles() {
   await fs.mkdir(dataDir, { recursive: true });
   try {
@@ -31,7 +34,35 @@ async function writeJson<T>(filePath: string, data: T) {
   await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
+async function releaseExpiredReservations() {
+  const [items, orders] = await Promise.all([
+    readJson<Item[]>(itemsPath),
+    readJson<Order[]>(ordersPath),
+  ]);
+  const now = Date.now();
+  let changed = false;
+
+  for (const order of orders) {
+    if (order.status !== "pending") continue;
+    const age = now - new Date(order.createdAt).getTime();
+    if (age < RESERVATION_MS) continue;
+
+    order.status = "cancelled";
+    changed = true;
+
+    const item = items.find((entry) => entry.id === order.itemId);
+    if (item && item.status === "reserved") {
+      item.status = "available";
+      item.updatedAt = new Date().toISOString();
+    }
+  }
+
+  if (!changed) return;
+  await Promise.all([writeJson(itemsPath, items), writeJson(ordersPath, orders)]);
+}
+
 export async function listItems(): Promise<Item[]> {
+  await releaseExpiredReservations();
   const items = await readJson<Item[]>(itemsPath);
   return items.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -88,6 +119,7 @@ export async function deleteItem(id: string): Promise<boolean> {
 }
 
 export async function listOrders(): Promise<Order[]> {
+  await releaseExpiredReservations();
   const orders = await readJson<Order[]>(ordersPath);
   return orders.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -115,7 +147,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     createdAt: new Date().toISOString(),
   };
 
-  const orders = await listOrders();
+  const orders = await readJson<Order[]>(ordersPath);
   orders.unshift(order);
   await writeJson(ordersPath, orders);
   await updateItem(item.id, { status: "reserved" });

@@ -2,6 +2,7 @@ import { Hero } from "@/components/hero";
 import { ItemGrid } from "@/components/item-grid";
 import { SiteHeader } from "@/components/site-header";
 import { Story } from "@/components/story";
+import { UpdateBanner } from "@/components/update-banner";
 import { listItems } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +12,11 @@ export default async function HomePage() {
 
   return (
     <main className="flex-1">
-      <SiteHeader />
-      <Hero />
+      <UpdateBanner />
+      <div className="relative">
+        <SiteHeader />
+        <Hero />
+      </div>
       <Story />
       <section id="itens" className="bg-[var(--foam)]">
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">

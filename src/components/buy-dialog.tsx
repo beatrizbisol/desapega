@@ -120,9 +120,11 @@ export function BuyDialog({
                 <DialogTitle>Pedido registrado</DialogTitle>
                 <DialogDescription>
                   Reservamos <strong>{title}</strong> ({formatBRL(price)}) pra
-                  você. Em breve enviamos o link de pagamento (
-                  {paymentLabel(paymentMethod)}) e combinamos a entrega (
-                  {deliveryLabel(deliveryMethod)}).
+                  você ({paymentLabel(paymentMethod)} ·{" "}
+                  {deliveryLabel(deliveryMethod)}). Em até 24h entraremos em
+                  contato com o link de pagamento. Você terá 24h para pagar e
+                  garantir o item; depois disso a reserva cai e o anúncio volta
+                  a ficar disponível.
                 </DialogDescription>
               </DialogHeader>
               <Button
@@ -143,6 +145,13 @@ export function BuyDialog({
                   (Uber Flash ou Correios) também é por conta de quem compra.
                 </DialogDescription>
               </DialogHeader>
+
+              <div className="rounded-lg border border-[var(--ocean)]/25 bg-[var(--mist)] px-3 py-3 text-sm leading-relaxed text-[var(--ocean-ink)]">
+                Em até <strong>24 horas</strong> entraremos em contato. Depois
+                disso, você terá <strong>24 horas</strong> para fazer o
+                pagamento e garantir o item. Passado esse prazo, a reserva cai e
+                o anúncio volta a ficar disponível no site.
+              </div>
 
               <form className="space-y-5" onSubmit={submitOrder}>
                 <fieldset className="space-y-2">
