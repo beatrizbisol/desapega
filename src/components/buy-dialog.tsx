@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, QrCode } from "lucide-react";
+import { CreditCard, QrCode, Truck, MapPin, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,10 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatBRL } from "@/lib/format";
-import type { PaymentMethod } from "@/lib/types";
-
-type Step = "details" | "payment" | "done";
+import { formatBRL, deliveryLabel, paymentLabel } from "@/lib/format";
+import { formatPhoneInput, isValidMobilePhone } from "@/lib/phone";
+import type { DeliveryMethod, PaymentMethod } from "@/lib/types";
 
 export function BuyDialog({
   itemId,
@@ -31,18 +30,22 @@ export function BuyDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>("details");
+  const [done, setDone] = useState(false);
   const [buyerName, setBuyerName] = useState("");
-  const [buyerContact, setBuyerContact] = useState("");
+  const [buyerPhone, setBuyerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   function reset() {
-    setStep("details");
+    setDone(false);
     setBuyerName("");
-    setBuyerContact("");
+    setBuyerPhone("");
     setPaymentMethod(null);
+    setDeliveryMethod(null);
     setError(null);
     setLoading(false);
   }
@@ -52,11 +55,25 @@ export function BuyDialog({
     if (!next) reset();
   }
 
-  async function submitOrder() {
+  async function submitOrder(event: FormEvent) {
+    event.preventDefault();
     if (!paymentMethod) {
       setError("Escolha Pix ou cartão.");
       return;
     }
+    if (!deliveryMethod) {
+      setError("Escolha a forma de entrega.");
+      return;
+    }
+    if (!buyerName.trim()) {
+      setError("Informe seu nome.");
+      return;
+    }
+    if (!isValidMobilePhone(buyerPhone)) {
+      setError("Celular com DDD (2 dígitos) + 9 dígitos, ex.: (51) 99999-0000.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -66,15 +83,16 @@ export function BuyDialog({
         body: JSON.stringify({
           itemId,
           buyerName,
-          buyerContact,
+          buyerPhone,
           paymentMethod,
+          deliveryMethod,
         }),
       });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || "Não foi possível reservar.");
       }
-      setStep("done");
+      setDone(true);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado.");
@@ -95,132 +113,16 @@ export function BuyDialog({
         Comprar
       </Button>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-md">
-          {step === "details" && (
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          {done && paymentMethod && deliveryMethod ? (
             <>
               <DialogHeader>
-                <DialogTitle>Reservar {title}</DialogTitle>
+                <DialogTitle>Pedido registrado</DialogTitle>
                 <DialogDescription>
-                  Estoque de 1 unidade. Conta pra gente quem é você e como te
-                  encontramos — {formatBRL(price)}.
-                </DialogDescription>
-              </DialogHeader>
-              <form
-                className="space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!buyerName.trim() || !buyerContact.trim()) {
-                    setError("Preencha nome e contato.");
-                    return;
-                  }
-                  setError(null);
-                  setStep("payment");
-                }}
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="buyerName">Seu nome</Label>
-                  <Input
-                    id="buyerName"
-                    value={buyerName}
-                    onChange={(event) => setBuyerName(event.target.value)}
-                    placeholder="Como te chamamos"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="buyerContact">WhatsApp ou e-mail</Label>
-                  <Input
-                    id="buyerContact"
-                    value={buyerContact}
-                    onChange={(event) => setBuyerContact(event.target.value)}
-                    placeholder="Pra combinarmos a retirada"
-                    required
-                  />
-                </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" className="w-full">
-                  Continuar para o pagamento
-                </Button>
-              </form>
-            </>
-          )}
-
-          {step === "payment" && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Como prefere pagar?</DialogTitle>
-                <DialogDescription>
-                  O front já está pronto. A integração de pagamento (Pix/cartão)
-                  entra depois — por enquanto isso reserva o item pra você.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("pix")}
-                  className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
-                    paymentMethod === "pix"
-                      ? "border-[var(--ocean)] bg-[var(--mist)]"
-                      : "border-[var(--line)] hover:border-[var(--ocean)]/50"
-                  }`}
-                >
-                  <QrCode className="size-5 text-[var(--ocean)]" />
-                  <span>
-                    <span className="block font-medium">Pix</span>
-                    <span className="text-sm text-muted-foreground">
-                      Pagamento instantâneo
-                    </span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("card")}
-                  className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
-                    paymentMethod === "card"
-                      ? "border-[var(--ocean)] bg-[var(--mist)]"
-                      : "border-[var(--line)] hover:border-[var(--ocean)]/50"
-                  }`}
-                >
-                  <CreditCard className="size-5 text-[var(--ocean)]" />
-                  <span>
-                    <span className="block font-medium">Cartão</span>
-                    <span className="text-sm text-muted-foreground">
-                      Crédito ou débito
-                    </span>
-                  </span>
-                </button>
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setStep("details")}
-                >
-                  Voltar
-                </Button>
-                <Button
-                  type="button"
-                  className="flex-1"
-                  disabled={loading}
-                  onClick={submitOrder}
-                >
-                  {loading ? "Reservando…" : "Confirmar reserva"}
-                </Button>
-              </div>
-            </>
-          )}
-
-          {step === "done" && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Item reservado pra você</DialogTitle>
-                <DialogDescription>
-                  Recebemos seu interesse em <strong>{title}</strong> via{" "}
-                  {paymentMethod === "pix" ? "Pix" : "cartão"}. Em breve te
-                  chamamos no contato informado para combinar a retirada e
-                  finalizar o pagamento.
+                  Reservamos <strong>{title}</strong> ({formatBRL(price)}) pra
+                  você. Em breve enviamos o link de pagamento (
+                  {paymentLabel(paymentMethod)}) e combinamos a entrega (
+                  {deliveryLabel(deliveryMethod)}).
                 </DialogDescription>
               </DialogHeader>
               <Button
@@ -231,9 +133,145 @@ export function BuyDialog({
                 Fechar
               </Button>
             </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Comprar {title}</DialogTitle>
+                <DialogDescription>
+                  Estoque de 1 unidade · {formatBRL(price)}. Enviaremos o link de
+                  pagamento; taxas de cartão ficam por conta do comprador. Frete
+                  (Uber Flash ou Correios) também é por conta de quem compra.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form className="space-y-5" onSubmit={submitOrder}>
+                <fieldset className="space-y-2">
+                  <Legend>Pagamento</Legend>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <ChoiceCard
+                      selected={paymentMethod === "pix"}
+                      onClick={() => setPaymentMethod("pix")}
+                      icon={<QrCode className="size-5 text-[var(--ocean)]" />}
+                      title="Pix"
+                      subtitle="Enviaremos o link/QR"
+                    />
+                    <ChoiceCard
+                      selected={paymentMethod === "card"}
+                      onClick={() => setPaymentMethod("card")}
+                      icon={<CreditCard className="size-5 text-[var(--ocean)]" />}
+                      title="Cartão"
+                      subtitle="Taxas por conta do comprador"
+                    />
+                  </div>
+                </fieldset>
+
+                <fieldset className="space-y-2">
+                  <Legend>Entrega</Legend>
+                  <div className="grid gap-2">
+                    <ChoiceCard
+                      selected={deliveryMethod === "pickup"}
+                      onClick={() => setDeliveryMethod("pickup")}
+                      icon={<MapPin className="size-5 text-[var(--ocean)]" />}
+                      title="Retirada em Boa Vista — Porto Alegre"
+                      subtitle="Presencial, combinamos o horário"
+                    />
+                    <ChoiceCard
+                      selected={deliveryMethod === "uber_flash"}
+                      onClick={() => setDeliveryMethod("uber_flash")}
+                      icon={<Truck className="size-5 text-[var(--ocean)]" />}
+                      title="Uber Flash"
+                      subtitle="Frete pago pelo comprador"
+                    />
+                    <ChoiceCard
+                      selected={deliveryMethod === "correios"}
+                      onClick={() => setDeliveryMethod("correios")}
+                      icon={<Package className="size-5 text-[var(--ocean)]" />}
+                      title="Correios"
+                      subtitle="Frete pago pelo comprador"
+                    />
+                  </div>
+                </fieldset>
+
+                <div className="space-y-2">
+                  <Label htmlFor="buyerName">Nome</Label>
+                  <Input
+                    id="buyerName"
+                    value={buyerName}
+                    onChange={(event) => setBuyerName(event.target.value)}
+                    placeholder="Seu nome completo"
+                    required
+                    autoComplete="name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="buyerPhone">Celular (DDD + número)</Label>
+                  <Input
+                    id="buyerPhone"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={buyerPhone}
+                    onChange={(event) =>
+                      setBuyerPhone(formatPhoneInput(event.target.value))
+                    }
+                    placeholder="(51) 99999-0000"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    2 dígitos de DDD + 9 dígitos do celular.
+                  </p>
+                </div>
+
+                {error && <p className="text-sm text-destructive">{error}</p>}
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Enviando…" : "Confirmar pedido"}
+                </Button>
+              </form>
+            </>
           )}
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function Legend({ children }: { children: ReactNode }) {
+  return (
+    <legend className="text-sm font-medium text-[var(--ocean-ink)]">
+      {children}
+    </legend>
+  );
+}
+
+function ChoiceCard({
+  selected,
+  onClick,
+  icon,
+  title,
+  subtitle,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-start gap-3 rounded-lg border px-3 py-3 text-left transition ${
+        selected
+          ? "border-[var(--ocean)] bg-[var(--mist)]"
+          : "border-[var(--line)] hover:border-[var(--ocean)]/50"
+      }`}
+    >
+      <span className="mt-0.5">{icon}</span>
+      <span>
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="text-xs text-muted-foreground">{subtitle}</span>
+      </span>
+    </button>
   );
 }

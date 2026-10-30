@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { isValidMobilePhone, phoneDigits } from "@/lib/phone";
 import { assertAdmin, createOrder, listOrders } from "@/lib/store";
-import type { PaymentMethod } from "@/lib/types";
+import type { DeliveryMethod, PaymentMethod } from "@/lib/types";
 
 export async function GET(request: Request) {
   try {
@@ -20,12 +21,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const itemId = String(body.itemId ?? "");
     const buyerName = String(body.buyerName ?? "").trim();
-    const buyerContact = String(body.buyerContact ?? "").trim();
+    const buyerPhone = String(body.buyerPhone ?? "").trim();
     const paymentMethod = String(body.paymentMethod ?? "") as PaymentMethod;
+    const deliveryMethod = String(body.deliveryMethod ?? "") as DeliveryMethod;
 
-    if (!itemId || !buyerName || !buyerContact) {
+    if (!itemId || !buyerName || !buyerPhone) {
       return NextResponse.json(
-        { error: "Preencha nome e contato." },
+        { error: "Preencha nome e telefone." },
+        { status: 400 },
+      );
+    }
+    if (!isValidMobilePhone(buyerPhone)) {
+      return NextResponse.json(
+        { error: "Informe um celular com DDD (2 dígitos) + 9 dígitos." },
         { status: 400 },
       );
     }
@@ -35,12 +43,23 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    if (
+      deliveryMethod !== "pickup" &&
+      deliveryMethod !== "uber_flash" &&
+      deliveryMethod !== "correios"
+    ) {
+      return NextResponse.json(
+        { error: "Escolha a forma de entrega." },
+        { status: 400 },
+      );
+    }
 
     const order = await createOrder({
       itemId,
       buyerName,
-      buyerContact,
+      buyerPhone: phoneDigits(buyerPhone),
       paymentMethod,
+      deliveryMethod,
     });
     return NextResponse.json(order, { status: 201 });
   } catch (error) {

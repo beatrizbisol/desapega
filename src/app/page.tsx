@@ -33,7 +33,7 @@ export default async function HomePage() {
       <footer className="border-t border-[var(--line)] bg-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-8 text-sm text-[var(--ink-soft)] sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p>Beatriz &amp; Filipe · POA → Fortaleza</p>
-          <p>Retirada combinada pessoalmente com quem reservar.</p>
+          <p>Retirada em Boa Vista — Porto Alegre, Uber Flash ou Correios.</p>
         </div>
       </footer>
     </main>

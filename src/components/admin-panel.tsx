@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatBRL, statusLabel } from "@/lib/format";
+import { deliveryLabel, formatBRL, paymentLabel, statusLabel } from "@/lib/format";
+import { formatPhoneInput } from "@/lib/phone";
 import type { Item, ItemStatus, Order } from "@/lib/types";
 
 const SECRET_KEY = "bf-admin-secret";
@@ -360,8 +361,9 @@ export function AdminPanel() {
               >
                 <p className="font-medium text-[var(--ocean-ink)]">{order.itemTitle}</p>
                 <p className="mt-1 text-sm text-[var(--ink-soft)]">
-                  {order.buyerName} · {order.buyerContact} ·{" "}
-                  {order.paymentMethod === "pix" ? "Pix" : "Cartão"}
+                  {order.buyerName} · {formatPhoneInput(order.buyerPhone)} ·{" "}
+                  {paymentLabel(order.paymentMethod)} ·{" "}
+                  {deliveryLabel(order.deliveryMethod)}
                 </p>
               </div>
             ))}

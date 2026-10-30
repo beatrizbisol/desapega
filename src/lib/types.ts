@@ -2,6 +2,11 @@ export type ItemStatus = "available" | "reserved" | "sold";
 
 export type PaymentMethod = "pix" | "card";
 
+export type DeliveryMethod =
+  | "pickup"
+  | "uber_flash"
+  | "correios";
+
 export type Item = {
   id: string;
   title: string;
@@ -18,8 +23,9 @@ export type Order = {
   itemId: string;
   itemTitle: string;
   buyerName: string;
-  buyerContact: string;
+  buyerPhone: string;
   paymentMethod: PaymentMethod;
+  deliveryMethod: DeliveryMethod;
   status: "pending" | "confirmed" | "cancelled";
   createdAt: string;
 };
@@ -34,6 +40,7 @@ export type CreateItemInput = {
 export type CreateOrderInput = {
   itemId: string;
   buyerName: string;
-  buyerContact: string;
+  buyerPhone: string;
   paymentMethod: PaymentMethod;
+  deliveryMethod: DeliveryMethod;
 };

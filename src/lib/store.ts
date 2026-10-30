@@ -108,8 +108,9 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     itemId: item.id,
     itemTitle: item.title,
     buyerName: input.buyerName.trim(),
-    buyerContact: input.buyerContact.trim(),
+    buyerPhone: input.buyerPhone.trim(),
     paymentMethod: input.paymentMethod,
+    deliveryMethod: input.deliveryMethod,
     status: "pending",
     createdAt: new Date().toISOString(),
   };

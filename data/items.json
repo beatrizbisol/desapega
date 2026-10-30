@@ -1,27 +1,87 @@
 [
   {
-    "id": "sample-sofa",
-    "title": "Sofá cinza de 3 lugares",
-    "description": "Sofá confortável, pouco uso. Tecido cinza claro, estrutura firme. Retirada em Porto Alegre (combinamos o horário).",
-    "price": 650,
+    "id": "aquecedor-philco-paq1520p",
+    "title": "Aquecedor a óleo Philco PAQ1520P",
+    "description": "Aquecedor elétrico a óleo Philco PAQ1520P, 127V (110V), 1500W, na cor preta/chumbo.\n\nTem 3 níveis de potência, termostato, luz indicadora, alça e rodízios para mover com facilidade. O aquecimento a óleo é mais estável e seguro para uso em ambientes fechados (não queima oxigênio como aquecedores a combustão).\n\nAparelho limpo e em bom estado de conservação. Ideal para os invernos de Porto Alegre.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
+    "price": 220,
     "photos": [
-      "/samples/sofa-1.png",
-      "/samples/sofa-2.png"
+      "/items/aquecedor/01.jpg",
+      "/items/aquecedor/02.jpg"
     ],
     "status": "available",
-    "createdAt": "2026-10-30T14:31:36.184Z",
-    "updatedAt": "2026-10-30T14:56:12.701Z"
+    "createdAt": "2026-10-30T18:00:06.000Z",
+    "updatedAt": "2026-10-30T17:55:57.917Z"
   },
   {
-    "id": "sample-mesa",
-    "title": "Mesa de jantar de madeira",
-    "description": "Mesa para 4 pessoas, tampo de madeira. Alguns sinais leves de uso. Ideal pra quem está montando a casa.",
-    "price": 420,
+    "id": "cadeira-escritorio-mesh",
+    "title": "Cadeira de escritório ergonômica (tela mesh)",
+    "description": "Cadeira de escritório com encosto alto em tela mesh respirável, apoio de cabeça, assento estofado, braços fixos e base giratória cromada com rodízios. Tem regulagem de altura por pistão a gás.\n\nEstrutura firme e funcional. Há pontos de ferrugem nas partes cromadas (braços e base) e marcas de uso no assento e no plástico dos braços — transparentes nas fotos. Serve bem para home office no dia a dia.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
+    "price": 120,
     "photos": [
-      "/samples/mesa-1.png"
+      "/items/cadeira/01.jpg",
+      "/items/cadeira/02.jpg",
+      "/items/cadeira/03.jpg"
     ],
     "status": "available",
-    "createdAt": "2026-10-30T14:31:36.184Z",
-    "updatedAt": "2026-10-30T14:56:12.702Z"
+    "createdAt": "2026-10-30T18:00:05.000Z",
+    "updatedAt": "2026-10-30T18:00:05.000Z"
+  },
+  {
+    "id": "comoda-branca-4-gavetas",
+    "title": "Cômoda branca com 4 gavetas",
+    "description": "Cômoda moderna branca com 4 gavetas, puxadores e pés em madeira clara. Corrediças metálicas; as gavetas abrem com suavidade.\n\nEstado geral bom. Há um ponto breve de madeira estufada no canto superior direito da lateral (mostrado na última foto) — não compromete o uso das gavetas.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
+    "price": 250,
+    "photos": [
+      "/items/comoda/01.jpg",
+      "/items/comoda/02.jpg",
+      "/items/comoda/03.jpg",
+      "/items/comoda/04-detalhe.jpg"
+    ],
+    "status": "available",
+    "createdAt": "2026-10-30T18:00:04.000Z",
+    "updatedAt": "2026-10-30T18:00:04.000Z"
+  },
+  {
+    "id": "penteadeira-politorno",
+    "title": "Penteadeira branca Politorno com espelho",
+    "description": "Penteadeira Politorno branca, design minimalista, com espelho amplo e 1 gaveta larga com corrediças metálicas telescópicas.\n\nAcabamento limpo, bem conservada. Ótima para quarto ou camarim compacto. Objetos das fotos (perfumes, organizadores etc.) não acompanham.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
+    "price": 220,
+    "photos": [
+      "/items/penteadeira/01.jpg",
+      "/items/penteadeira/02.jpg",
+      "/items/penteadeira/03.jpg"
+    ],
+    "status": "available",
+    "createdAt": "2026-10-30T18:00:03.000Z",
+    "updatedAt": "2026-10-30T18:00:03.000Z"
+  },
+  {
+    "id": "midea-lava-seca-11kg",
+    "title": "Lava e seca Midea 11 kg MF200D110WB",
+    "description": "Máquina lava e seca Midea HealthGuard, modelo MF200D110WB/GK-01, 127V (110V), cor titânio.\n\n• Lavagem 11 kg / secagem 7 kg\n• Motor Inverter Quattro (mais silencioso e econômico)\n• Funções vapor (SteamCare), HealthGuard, Turbo e conectividade MSmartHome (Wi‑Fi)\n• Centrifugação até 1400 rpm\n• Selo Procel A — consumo 0,26 kWh/ciclo (etiqueta INMETRO nas fotos)\n• Medidas aprox.: 85 × 59,5 × 56,5 cm\n\nAparelho em ótimo estado visual e de funcionamento. Ideal pra quem quer lavar e secar em um só equipamento.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador. Por ser pesada (~70 kg), a retirada presencial ou Uber Flash costuma ser mais prática.",
+    "price": 1850,
+    "photos": [
+      "/items/maquina/01.jpg",
+      "/items/maquina/02.jpg",
+      "/items/maquina/03-selo.jpg",
+      "/items/maquina/04-selo.jpg"
+    ],
+    "status": "available",
+    "createdAt": "2026-10-30T18:00:02.000Z",
+    "updatedAt": "2026-10-30T18:00:02.000Z"
+  },
+  {
+    "id": "sapateira-branca",
+    "title": "Sapateira branca com 2 gavetões",
+    "description": "Sapateira vertical branca com tampo em tom madeira clara: 1 gaveta rasa no topo para itens pequenos e 2 gavetões basculantes para sapatos (prateleiras internas).\n\nDesign compacto, bom para hall ou quarto. Em bom estado; pode ter marcas leves de uso no painel. Sapatos e objetos das fotos não acompanham.\n\nRetirada em Boa Vista — Porto Alegre, ou envio (Uber Flash / Correios) com frete por conta do comprador.",
+    "price": 180,
+    "photos": [
+      "/items/sapateira/01.jpg",
+      "/items/sapateira/02.jpg",
+      "/items/sapateira/03.jpg"
+    ],
+    "status": "available",
+    "createdAt": "2026-10-30T18:00:01.000Z",
+    "updatedAt": "2026-10-30T18:00:01.000Z"
   }
 ]
