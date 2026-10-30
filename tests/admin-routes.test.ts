@@ -1,0 +1,98 @@
+import { writeFile } from "fs/promises";
+import path from "path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createItem, createOrder } from "@/lib/store";
+import { item, order, useTempDataDir } from "./helpers";
+
+const session = vi.hoisted(() => ({ current: null as null | { user: { email: string } } }));
+vi.mock("@/auth", () => ({ auth: vi.fn(async () => session.current) }));
+
+const itemsRoute = await import("@/app/api/admin/items/route");
+const itemRoute = await import("@/app/api/admin/items/[id]/route");
+const ordersRoute = await import("@/app/api/admin/orders/route");
+const orderRoute = await import("@/app/api/admin/orders/[id]/route");
+const uploadRoute = await import("@/app/api/admin/upload/route");
+
+let tmp: Awaited<ReturnType<typeof useTempDataDir>>;
+
+beforeEach(async () => {
+  tmp = await useTempDataDir();
+  session.current = null;
+});
+
+afterEach(async () => {
+  await tmp.cleanup();
+});
+
+const json = (method: string, body?: unknown) =>
+  new Request("http://admin.test/api/admin/x", {
+    method,
+    headers: { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+const params = (id: string) => ({ params: Promise.resolve({ id }) });
+const pngForm = () => {
+  const form = new FormData();
+  form.set("file", new File([new Uint8Array([1, 2, 3])], "a.png", { type: "image/png" }));
+  return new Request("http://admin.test/api/admin/upload", { method: "POST", body: form });
+};
+
+const operations: Array<[string, () => Promise<Response>]> = [
+  ["POST items", () => itemsRoute.POST(json("POST", item()))],
+  ["PATCH item", () => itemRoute.PATCH(json("PATCH", { price: 50 }), params("x"))],
+  ["DELETE item", () => itemRoute.DELETE(json("DELETE"), params("x"))],
+  ["GET orders", () => ordersRoute.GET()],
+  ["PATCH order", () => orderRoute.PATCH(json("PATCH", { status: "confirmed" }), params("x"))],
+  ["POST upload", () => uploadRoute.POST(pngForm())],
+];
+
+describe("admin routes", () => {
+  it("401 without session on each of the 6 operations", async () => {
+    for (const [name, run] of operations) {
+      const res = await run();
+      expect(res.status, name).toBe(401);
+      expect(await res.json(), name).toEqual({ error: "Não autorizado." });
+    }
+  });
+
+  it("works with session: POST items 201 and GET orders 200", async () => {
+    session.current = { user: { email: "filipemlins@gmail.com" } };
+    const created = await itemsRoute.POST(json("POST", item()));
+    expect(created.status).toBe(201);
+    const listed = await ordersRoute.GET();
+    expect(listed.status).toBe(200);
+    expect(Array.isArray(await listed.json())).toBe(true);
+  });
+
+  it("admin contract: 200, 400, 404 and 500 per operation", async () => {
+    session.current = { user: { email: "filipemlins@gmail.com" } };
+    const a = await createItem(item("A"));
+    const b = await createItem(item("B"));
+    const o = await createOrder(order(b.id));
+
+    expect((await itemsRoute.POST(json("POST", { ...item(), title: "" }))).status).toBe(400);
+    expect((await itemRoute.PATCH(json("PATCH", { price: 50 }), params(a.id))).status).toBe(200);
+    expect((await itemRoute.PATCH(json("PATCH", { price: -1 }), params(a.id))).status).toBe(400);
+    expect((await itemRoute.PATCH(json("PATCH", { price: 50 }), params("nope"))).status).toBe(404);
+    expect((await orderRoute.PATCH(json("PATCH", { status: "confirmed" }), params(o.id))).status).toBe(200);
+    expect((await orderRoute.PATCH(json("PATCH", { status: "x" }), params(o.id))).status).toBe(400);
+    expect((await orderRoute.PATCH(json("PATCH", { status: "cancelled" }), params("nope"))).status).toBe(404);
+    expect((await itemRoute.DELETE(json("DELETE"), params(a.id))).status).toBe(200);
+    expect((await itemRoute.DELETE(json("DELETE"), params("nope"))).status).toBe(404);
+
+    const textForm = new FormData();
+    textForm.set("file", new File(["hi"], "a.txt", { type: "text/plain" }));
+    const badUpload = await uploadRoute.POST(
+      new Request("http://admin.test/api/admin/upload", { method: "POST", body: textForm }),
+    );
+    expect(badUpload.status).toBe(400);
+
+    const blocker = path.join(tmp.dir, "not-a-dir");
+    await writeFile(blocker, "x");
+    process.env.DATA_DIR = blocker;
+    process.env.UPLOADS_DIR = path.join(blocker, "uploads");
+    for (const [name, run] of operations) {
+      expect((await run()).status, name).toBe(500);
+    }
+  });
+});

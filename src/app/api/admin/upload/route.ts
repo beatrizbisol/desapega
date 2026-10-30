@@ -1,14 +1,15 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { assertAdmin } from "@/lib/store";
+import { adminError, requireAdmin } from "@/lib/admin-guard";
+import { uploadsDir } from "@/lib/uploads";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 export async function POST(request: Request) {
   try {
-    assertAdmin(request);
+    await requireAdmin();
     const form = await request.formData();
     const file = form.get("file");
 
@@ -38,15 +39,12 @@ export async function POST(request: Request) {
             ? "gif"
             : "jpg";
     const filename = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    await fs.mkdir(uploadsDir, { recursive: true });
-    await fs.writeFile(path.join(uploadsDir, filename), bytes);
+    const dir = uploadsDir();
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, filename), bytes);
 
     return NextResponse.json({ url: `/uploads/${filename}` }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-    }
-    return NextResponse.json({ error: "Erro no upload." }, { status: 500 });
+    return adminError(error, "Erro no upload.");
   }
 }

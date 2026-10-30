@@ -1,21 +1,8 @@
 import { NextResponse } from "next/server";
 import { isValidMobilePhone, phoneDigits } from "@/lib/phone";
 import { clientIp, hitRateLimit } from "@/lib/rate-limit";
-import { assertAdmin, createOrder, listOrders } from "@/lib/store";
+import { createOrder } from "@/lib/store";
 import type { DeliveryMethod, PaymentMethod } from "@/lib/types";
-
-export async function GET(request: Request) {
-  try {
-    assertAdmin(request);
-    const orders = await listOrders();
-    return NextResponse.json(orders);
-  } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-    }
-    return NextResponse.json({ error: "Erro ao listar pedidos." }, { status: 500 });
-  }
-}
 
 const ORDER_LIMIT = 5;
 const ORDER_WINDOW_MS = 60 * 60 * 1000;
