@@ -2,24 +2,54 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { CreateItemInput, CreateOrderInput, Item, Order } from "./types";
 
-const dataDir = path.join(process.cwd(), "data");
-const itemsPath = path.join(dataDir, "items.json");
-const ordersPath = path.join(dataDir, "orders.json");
-
 /** Pending reservations expire after 24h without payment confirmation. */
 export const RESERVATION_MS = 24 * 60 * 60 * 1000;
 
+// why: read at call time so DATA_DIR can point outside the repo in production
+export function dataDir() {
+  return process.env.DATA_DIR?.trim() || path.join(process.cwd(), "data");
+}
+
+const itemsPath = () => path.join(dataDir(), "items.json");
+const ordersPath = () => path.join(dataDir(), "orders.json");
+
+// invariant: every exported operation runs inside this chain, one at a time, so a
+// read-modify-write never interleaves with another and two reservations of the
+// same item cannot both see it as available.
+// why: kept on globalThis because the production server loads this module once
+// for route handlers and again for pages; a module-level chain would give each
+// copy its own queue and let their writes interleave.
+const queueHolder = globalThis as typeof globalThis & {
+  __desapegaStoreQueue?: Promise<unknown>;
+};
+
+function serialized<T>(task: () => Promise<T>): Promise<T> {
+  const run = (queueHolder.__desapegaStoreQueue ?? Promise.resolve()).then(task, task);
+  queueHolder.__desapegaStoreQueue = run.catch(() => undefined);
+  return run;
+}
+
 async function ensureDataFiles() {
-  await fs.mkdir(dataDir, { recursive: true });
-  try {
-    await fs.access(itemsPath);
-  } catch {
-    await fs.writeFile(itemsPath, "[]\n", "utf8");
+  await fs.mkdir(dataDir(), { recursive: true });
+  for (const filePath of [itemsPath(), ordersPath()]) {
+    try {
+      await fs.access(filePath);
+    } catch {
+      await writeAtomic(filePath, "[]\n");
+    }
   }
+}
+
+// invariant: the destination always holds a complete file; a crash mid-write
+// leaves only a stray .tmp next to it.
+async function writeAtomic(filePath: string, content: string) {
+  const tmpPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  await fs.writeFile(tmpPath, content, { encoding: "utf8", flush: true });
   try {
-    await fs.access(ordersPath);
-  } catch {
-    await fs.writeFile(ordersPath, "[]\n", "utf8");
+    await fs.rename(tmpPath, filePath);
+  } catch (error) {
+    await fs.rm(tmpPath, { force: true });
+    throw error;
   }
 }
 
@@ -31,13 +61,13 @@ async function readJson<T>(filePath: string): Promise<T> {
 
 async function writeJson<T>(filePath: string, data: T) {
   await ensureDataFiles();
-  await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  await writeAtomic(filePath, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 async function releaseExpiredReservations() {
   const [items, orders] = await Promise.all([
-    readJson<Item[]>(itemsPath),
-    readJson<Order[]>(ordersPath),
+    readJson<Item[]>(itemsPath()),
+    readJson<Order[]>(ordersPath()),
   ]);
   const now = Date.now();
   let changed = false;
@@ -58,24 +88,27 @@ async function releaseExpiredReservations() {
   }
 
   if (!changed) return;
-  await Promise.all([writeJson(itemsPath, items), writeJson(ordersPath, orders)]);
+  // invariant: items first; if the orders write then fails, the next call finds
+  // the same expired orders again and converges, with no item left reserved.
+  await writeJson(itemsPath(), items);
+  await writeJson(ordersPath(), orders);
 }
 
-export async function listItems(): Promise<Item[]> {
+async function listItemsUnlocked(): Promise<Item[]> {
   await releaseExpiredReservations();
-  const items = await readJson<Item[]>(itemsPath);
+  const items = await readJson<Item[]>(itemsPath());
   return items.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 }
 
-export async function getItem(id: string): Promise<Item | null> {
-  const items = await listItems();
+async function getItemUnlocked(id: string): Promise<Item | null> {
+  const items = await listItemsUnlocked();
   return items.find((item) => item.id === id) ?? null;
 }
 
-export async function createItem(input: CreateItemInput): Promise<Item> {
-  const items = await listItems();
+async function createItemUnlocked(input: CreateItemInput): Promise<Item> {
+  const items = await listItemsUnlocked();
   const now = new Date().toISOString();
   const item: Item = {
     id: crypto.randomUUID(),
@@ -88,15 +121,15 @@ export async function createItem(input: CreateItemInput): Promise<Item> {
     updatedAt: now,
   };
   items.unshift(item);
-  await writeJson(itemsPath, items);
+  await writeJson(itemsPath(), items);
   return item;
 }
 
-export async function updateItem(
+async function updateItemUnlocked(
   id: string,
   patch: Partial<Pick<Item, "title" | "description" | "price" | "photos" | "status">>,
 ): Promise<Item | null> {
-  const items = await listItems();
+  const items = await listItemsUnlocked();
   const index = items.findIndex((item) => item.id === id);
   if (index < 0) return null;
 
@@ -106,33 +139,39 @@ export async function updateItem(
     updatedAt: new Date().toISOString(),
   };
   items[index] = updated;
-  await writeJson(itemsPath, items);
+  await writeJson(itemsPath(), items);
   return updated;
 }
 
-export async function deleteItem(id: string): Promise<boolean> {
-  const items = await listItems();
+async function deleteItemUnlocked(id: string): Promise<boolean> {
+  const items = await listItemsUnlocked();
   const next = items.filter((item) => item.id !== id);
   if (next.length === items.length) return false;
-  await writeJson(itemsPath, next);
+  await writeJson(itemsPath(), next);
   return true;
 }
 
-export async function listOrders(): Promise<Order[]> {
+async function listOrdersUnlocked(): Promise<Order[]> {
   await releaseExpiredReservations();
-  const orders = await readJson<Order[]>(ordersPath);
+  const orders = await readJson<Order[]>(ordersPath());
   return orders.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 }
 
-export async function createOrder(input: CreateOrderInput): Promise<Order> {
-  const item = await getItem(input.itemId);
+async function createOrderUnlocked(input: CreateOrderInput): Promise<Order> {
+  const item = await getItemUnlocked(input.itemId);
   if (!item) {
     throw new Error("ITEM_NOT_FOUND");
   }
   if (item.status !== "available") {
     throw new Error("ITEM_UNAVAILABLE");
+  }
+
+  const orders = await readJson<Order[]>(ordersPath());
+  const phone = input.buyerPhone.trim();
+  if (orders.some((entry) => entry.status === "pending" && entry.buyerPhone === phone)) {
+    throw new Error("PHONE_HAS_PENDING");
   }
 
   const order: Order = {
@@ -147,40 +186,63 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     createdAt: new Date().toISOString(),
   };
 
-  const orders = await readJson<Order[]>(ordersPath);
+  const previousOrders = [...orders];
   orders.unshift(order);
-  await writeJson(ordersPath, orders);
-  await updateItem(item.id, { status: "reserved" });
+  await writeJson(ordersPath(), orders);
+  try {
+    await updateItemUnlocked(item.id, { status: "reserved" });
+  } catch (error) {
+    // invariant: an order is never left pending on an item still listed as
+    // available, which would let a second buyer reserve the same item.
+    await writeJson(ordersPath(), previousOrders);
+    throw error;
+  }
   return order;
 }
 
-export async function updateOrderStatus(
+async function updateOrderStatusUnlocked(
   id: string,
   status: Order["status"],
 ): Promise<Order | null> {
   await releaseExpiredReservations();
-  const orders = await readJson<Order[]>(ordersPath);
+  const orders = await readJson<Order[]>(ordersPath());
   const index = orders.findIndex((order) => order.id === id);
   if (index < 0) return null;
 
   const current = orders[index];
   if (current.status === status) return current;
+  if (current.status !== "pending" && status !== "cancelled") {
+    throw new Error("INVALID_TRANSITION");
+  }
 
   const updated: Order = { ...current, status };
   orders[index] = updated;
-  await writeJson(ordersPath, orders);
+  await writeJson(ordersPath(), orders);
 
   if (status === "confirmed") {
-    await updateItem(current.itemId, { status: "sold" });
+    await updateItemUnlocked(current.itemId, { status: "sold" });
   } else if (status === "cancelled") {
-    const item = await getItem(current.itemId);
+    const item = await getItemUnlocked(current.itemId);
     if (item && item.status === "reserved") {
-      await updateItem(current.itemId, { status: "available" });
+      await updateItemUnlocked(current.itemId, { status: "available" });
     }
   }
 
   return updated;
 }
+
+export const listItems = () => serialized(listItemsUnlocked);
+export const getItem = (id: string) => serialized(() => getItemUnlocked(id));
+export const createItem = (input: CreateItemInput) =>
+  serialized(() => createItemUnlocked(input));
+export const updateItem = (...args: Parameters<typeof updateItemUnlocked>) =>
+  serialized(() => updateItemUnlocked(...args));
+export const deleteItem = (id: string) => serialized(() => deleteItemUnlocked(id));
+export const listOrders = () => serialized(listOrdersUnlocked);
+export const createOrder = (input: CreateOrderInput) =>
+  serialized(() => createOrderUnlocked(input));
+export const updateOrderStatus = (...args: Parameters<typeof updateOrderStatusUnlocked>) =>
+  serialized(() => updateOrderStatusUnlocked(...args));
 
 export function assertAdmin(request: Request) {
   const expected = process.env.ADMIN_SECRET?.trim();

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isValidMobilePhone, phoneDigits } from "@/lib/phone";
+import { clientIp, hitRateLimit } from "@/lib/rate-limit";
 import { assertAdmin, createOrder, listOrders } from "@/lib/store";
 import type { DeliveryMethod, PaymentMethod } from "@/lib/types";
 
@@ -16,7 +17,22 @@ export async function GET(request: Request) {
   }
 }
 
+const ORDER_LIMIT = 5;
+const ORDER_WINDOW_MS = 60 * 60 * 1000;
+
 export async function POST(request: Request) {
+  const { limited, retryAfterSeconds } = hitRateLimit(
+    `orders:${clientIp(request)}`,
+    ORDER_LIMIT,
+    ORDER_WINDOW_MS,
+  );
+  if (limited) {
+    return NextResponse.json(
+      { error: "Muitas tentativas. Tente de novo mais tarde." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
+    );
+  }
+
   try {
     const body = await request.json();
     const itemId = String(body.itemId ?? "");
@@ -65,6 +81,12 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === "ITEM_NOT_FOUND") {
       return NextResponse.json({ error: "Item não encontrado." }, { status: 404 });
+    }
+    if (error instanceof Error && error.message === "PHONE_HAS_PENDING") {
+      return NextResponse.json(
+        { error: "Já existe uma reserva pendente para este telefone." },
+        { status: 409 },
+      );
     }
     if (error instanceof Error && error.message === "ITEM_UNAVAILABLE") {
       return NextResponse.json(
