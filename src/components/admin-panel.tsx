@@ -66,7 +66,7 @@ export function AdminPanel({
 
   async function loadData() {
     const [allItems, allOrders] = await Promise.all([
-      fetchAll<Item>("/api/items", "items"),
+      fetchAll<Item>("/api/admin/items", "items"),
       fetchAll<Order>("/api/admin/orders", "orders"),
     ]);
     if (!allItems || !allOrders) {

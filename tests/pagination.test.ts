@@ -6,6 +6,7 @@ import { item, order, useTempDataDir } from "./helpers";
 
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => ({ user: { email: "filipemlins@gmail.com" } })) }));
 const { GET: listOrdersRoute } = await import("@/app/api/admin/orders/route");
+const { GET: listAdminItemsRoute } = await import("@/app/api/admin/items/route");
 
 let tmp: Awaited<ReturnType<typeof useTempDataDir>>;
 
@@ -19,6 +20,7 @@ afterEach(async () => {
 });
 
 const getItems = (qs: string) => listItemsRoute(new Request(`http://site.test/api/items${qs}`));
+const getAdminItems = (qs: string) => listAdminItemsRoute(new Request(`http://admin.test/api/admin/items${qs}`));
 const getOrders = (qs: string) => listOrdersRoute(new Request(`http://admin.test/api/admin/orders${qs}`));
 
 describe("pagination", () => {
@@ -47,7 +49,9 @@ describe("pagination", () => {
     await createItem(item("B"));
     await updateItem(a.id, { status: "sold" });
 
-    const sold = (await (await getItems("?status=sold")).json()) as { items: Item[] };
+    const publicItems = (await (await getItems("")).json()) as { items: Item[] };
+    expect(publicItems.items.map((entry) => entry.title)).toEqual(["B"]);
+    const sold = (await (await getAdminItems("?status=sold")).json()) as { items: Item[] };
     expect(sold.items.map((entry) => entry.title)).toEqual(["A"]);
 
     for (let i = 0; i < 25; i += 1) await createItem(item(`More ${i}`));
@@ -55,7 +59,7 @@ describe("pagination", () => {
     expect(firstPage.items).toHaveLength(20);
     expect(firstPage.nextCursor).not.toBeNull();
 
-    for (const bad of ["?limit=0", "?limit=101", "?limit=abc", "?status=lost", "?cursor=@@@"]) {
+    for (const bad of ["?limit=0", "?limit=101", "?limit=abc", "?status=lost", "?status=sold", "?cursor=@@@"]) {
       const res = await getItems(bad);
       expect(res.status, bad).toBe(400);
     }

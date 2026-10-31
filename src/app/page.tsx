@@ -9,7 +9,7 @@ import { listItems } from "@/lib/store";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const items = await listItems();
+  const items = await listItems({ hideSold: true });
 
   return (
     <main className="flex-1">
