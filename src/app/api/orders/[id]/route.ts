@@ -21,6 +21,12 @@ export async function PATCH(request: Request, { params }: Params) {
     }
     return NextResponse.json(order);
   } catch (error) {
+    if (error instanceof Error && error.message === "INVALID_TRANSITION") {
+      return NextResponse.json(
+        { error: "Só um pedido pendente pode ser confirmado ou voltar a pendente." },
+        { status: 409 },
+      );
+    }
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
     }

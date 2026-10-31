@@ -81,3 +81,56 @@ describe("store", () => {
   });
 });
 
+
+describe("store hardening", () => {
+  it("shared queue: two module instances still serialize writes", async () => {
+    vi.resetModules();
+    const first = await import("@/lib/store");
+    vi.resetModules();
+    const second = await import("@/lib/store");
+    expect(first).not.toBe(second);
+
+    await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        (i % 2 ? first : second).createItem(item(`Item ${i}`)),
+      ),
+    );
+    const saved = JSON.parse(await readFile(path.join(tmp.dir, "items.json"), "utf8"));
+    expect(saved).toHaveLength(20);
+  });
+
+  it("order rollback: a failed item write leaves no pending order and the item available", async () => {
+    const created = await createItem(item());
+    const realRename = fsModule.promises.rename;
+    let calls = 0;
+    vi.spyOn(fsModule.promises, "rename").mockImplementation(async (from, to) => {
+      calls += 1;
+      if (calls === 2) throw new Error("disk gone");
+      return realRename(from, to);
+    });
+
+    await expect(createOrder(order(created.id))).rejects.toThrow("disk gone");
+    vi.restoreAllMocks();
+
+    expect(await listOrders()).toHaveLength(0);
+    const saved = JSON.parse(await readFile(path.join(tmp.dir, "items.json"), "utf8"));
+    expect(saved[0].status).toBe("available");
+  });
+
+  it("durable write: json is written with flush", async () => {
+    const spy = vi.spyOn(fsModule.promises, "writeFile");
+    await createItem(item());
+    expect(spy.mock.calls.some(([, , options]) => (options as { flush?: boolean })?.flush === true)).toBe(true);
+  });
+
+  it("order transitions: only a pending order can be confirmed", async () => {
+    const a = await createItem(item("A"));
+    const first = await createOrder(order(a.id, "51911111111"));
+    await updateOrderStatus(first.id, "cancelled");
+    await createOrder(order(a.id, "51922222222"));
+
+    await expect(updateOrderStatus(first.id, "confirmed")).rejects.toThrow("INVALID_TRANSITION");
+    const saved = JSON.parse(await readFile(path.join(tmp.dir, "items.json"), "utf8"));
+    expect(saved[0].status).toBe("reserved");
+  });
+});

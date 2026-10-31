@@ -172,6 +172,7 @@ None - os formatos de `Item` e `Order` não mudam; só muda onde os arquivos fic
 | `PATCH /api/admin/orders/[id]` | `status` | `Order` · `{ error }` | `200`, `400`, `401`, `404`, `500` |
 | `POST /api/admin/upload` | `file` (multipart) | `{ url }` · `{ error }` | `201`, `400`, `401`, `404`, `500` |
 | `GET /uploads/[file]` | `file` | bytes da imagem | `200`, `404` |
+| `PATCH /api/admin/orders/[id]` (transição inválida, achado P1 do review) | `status` | `{ error }` | `409` |
 | `GET,POST /api/auth/*` | fluxo OAuth do Auth.js | redirects / sessão | `200`, `302`, `404` |
 
 ## Landing

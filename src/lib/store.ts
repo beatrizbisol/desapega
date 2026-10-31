@@ -16,11 +16,16 @@ const ordersPath = () => path.join(dataDir(), "orders.json");
 // invariant: every exported operation runs inside this chain, one at a time, so a
 // read-modify-write never interleaves with another and two reservations of the
 // same item cannot both see it as available.
-let queue: Promise<unknown> = Promise.resolve();
+// why: kept on globalThis because the production server loads this module once
+// for route handlers and again for pages; a module-level chain would give each
+// copy its own queue and let their writes interleave.
+const queueHolder = globalThis as typeof globalThis & {
+  __desapegaStoreQueue?: Promise<unknown>;
+};
 
 function serialized<T>(task: () => Promise<T>): Promise<T> {
-  const run = queue.then(task, task);
-  queue = run.catch(() => undefined);
+  const run = (queueHolder.__desapegaStoreQueue ?? Promise.resolve()).then(task, task);
+  queueHolder.__desapegaStoreQueue = run.catch(() => undefined);
   return run;
 }
 
@@ -39,7 +44,7 @@ async function ensureDataFiles() {
 // leaves only a stray .tmp next to it.
 async function writeAtomic(filePath: string, content: string) {
   const tmpPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  await fs.writeFile(tmpPath, content, "utf8");
+  await fs.writeFile(tmpPath, content, { encoding: "utf8", flush: true });
   try {
     await fs.rename(tmpPath, filePath);
   } catch (error) {
@@ -83,7 +88,10 @@ async function releaseExpiredReservations() {
   }
 
   if (!changed) return;
-  await Promise.all([writeJson(itemsPath(), items), writeJson(ordersPath(), orders)]);
+  // invariant: items first; if the orders write then fails, the next call finds
+  // the same expired orders again and converges, with no item left reserved.
+  await writeJson(itemsPath(), items);
+  await writeJson(ordersPath(), orders);
 }
 
 async function listItemsUnlocked(): Promise<Item[]> {
@@ -178,9 +186,17 @@ async function createOrderUnlocked(input: CreateOrderInput): Promise<Order> {
     createdAt: new Date().toISOString(),
   };
 
+  const previousOrders = [...orders];
   orders.unshift(order);
   await writeJson(ordersPath(), orders);
-  await updateItemUnlocked(item.id, { status: "reserved" });
+  try {
+    await updateItemUnlocked(item.id, { status: "reserved" });
+  } catch (error) {
+    // invariant: an order is never left pending on an item still listed as
+    // available, which would let a second buyer reserve the same item.
+    await writeJson(ordersPath(), previousOrders);
+    throw error;
+  }
   return order;
 }
 
@@ -195,6 +211,9 @@ async function updateOrderStatusUnlocked(
 
   const current = orders[index];
   if (current.status === status) return current;
+  if (current.status !== "pending" && status !== "cancelled") {
+    throw new Error("INVALID_TRANSITION");
+  }
 
   const updated: Order = { ...current, status };
   orders[index] = updated;
