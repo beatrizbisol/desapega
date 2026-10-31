@@ -1,4 +1,5 @@
 import { Hero } from "@/components/hero";
+import { WHATSAPP_DISPLAY, whatsappLink } from "@/lib/whatsapp";
 import { ItemGrid } from "@/components/item-grid";
 import { SiteHeader } from "@/components/site-header";
 import { Story } from "@/components/story";
@@ -38,6 +39,14 @@ export default async function HomePage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-8 text-sm text-[var(--ink-soft)] sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p>Beatriz &amp; Filipe · POA → Fortaleza</p>
           <p>Retirada em Boa Vista — Porto Alegre, Uber Flash ou Correios.</p>
+          <a
+            href={whatsappLink("Oi, Beatriz! Vi o desapega de vocês e queria falar sobre os itens.")}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center font-medium text-[#128c4a] hover:underline"
+          >
+            WhatsApp da Beatriz: {WHATSAPP_DISPLAY}
+          </a>
         </div>
       </footer>
     </main>
