@@ -70,8 +70,8 @@ Proof: `npx vitest run tests/uploads.test.ts -t "upload and serve"`
 
 ### S4 - Pronto para a VPS · ~5 files · ~8 KB · ~2k
 
-**C16** - `docker compose -f docker-compose.prod.yml config` sai 0 e publica `127.0.0.1:43127`; `caddy validate` aceita o `deploy/Caddyfile`; `docs/DEPLOY.md` cita as 8 variáveis, `tailscale serve` e o cron de backup (OPS-01, AC 20, AC 21, AC 22)
-Proof: `touch .env.production && docker compose -f docker-compose.prod.yml config | grep -q "host_ip: 127.0.0.1"`
+**C16** - `docker compose -f docker-compose.prod.yml config` sai 0 e publica `127.0.0.1:43127`; `caddy validate` aceita o `deploy/Caddyfile`; `docs/DEPLOY.md` cita as 8 variáveis, `tailscale serve` e o cron de backup com agendamento `0 * * * *` (OPS-01, AC 20, AC 21, AC 22)
+Proof: `touch .env.production && docker compose -f docker-compose.prod.yml config | grep -A4 "host_ip: 127.0.0.1" | grep -q "published: \"43127\""`
 Proof: `docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile`
 Proof: `node scripts/check-deploy-doc.mjs`
 
