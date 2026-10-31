@@ -190,6 +190,10 @@ None - os formatos de `Item` e `Order` não mudam; só muda onde os arquivos fic
 
 | 6. Entrada pública por Cloudflare Tunnel (supera a parte "Caddy no host" do door 4; decidido pelo usuário em 2026-10-30 ao ver a VPS) | serviço `tunnel` (`cloudflare/cloudflared`) no `docker-compose.prod.yml` com `TUNNEL_TOKEN`; hostname público `desapega.useclubapp.com` → `web:43127`; regra WAF bloqueando `/admin`, `/api/admin`, `/api/auth` nesse host; `CLIENT_IP_HEADER=cf-connecting-ip` | Caddy no host com nuvem cinza: a 443 pública já é do Caddy do harmonica-api e o ufw só aceita IPs da Cloudflare ("origin lockdown"); pendurar no Caddy do harmonica-api: edita e reinicia o proxy de produção de outros apps |
 
+| 7. Postgres como store (pedido do usuário em 2026-10-30) | serviço `db` (`postgres:16-alpine`) no compose; tabelas `items` (id `text`, preserva slugs da semente) e `orders` (id `uuid`); índices únicos parciais `orders_one_pending_per_item` e `orders_one_pending_per_phone` em `WHERE status = 'pending'`; semente de `SEED_ITEMS_PATH` quando `items` está vazia | JSON em disco (ADR 0001): usuário pediu banco; SQLite: usuário escolheu Postgres |
+| 8. Fotos no R2 | uploads do admin com `R2_*` vão para `uploads/<arquivo>` no bucket; fotos da semente servidas de `MEDIA_BASE_URL` (`https://media.useclubapp.com`) | disco da VPS: usuário pediu R2 como no site do Eberienos |
+| 9. Paginação por cursor | `GET /api/items` e `GET /api/admin/orders` aceitam `limit` (1–100, padrão 20), `cursor`, `status`; respondem `{ items | orders, nextCursor }` | offset/página: duplica ou pula linhas quando entram itens novos entre páginas |
+
 - Nothing else in this change is hard to reverse
 
 ## Impact

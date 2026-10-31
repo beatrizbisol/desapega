@@ -8,5 +8,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    globalSetup: ["tests/global-setup.ts"],
+    // why: every file shares one Postgres and truncates it between tests.
+    fileParallelism: false,
   },
 });

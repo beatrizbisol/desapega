@@ -9,12 +9,30 @@ services:
       # why: traffic arrives through Cloudflare, which keeps a client-sent
       # X-Forwarded-For; CF-Connecting-IP is the address Cloudflare saw.
       CLIENT_IP_HEADER: cf-connecting-ip
+      SEED_ITEMS_PATH: /app/seed/items.json
     ports:
       # invariant: bound to loopback only; the public site reaches it through the
       # Cloudflare Tunnel below and the admin through `tailscale serve`.
       - "127.0.0.1:43127:43127"
     volumes:
       - /var/lib/desapega:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: desapega
+      POSTGRES_USER: desapega
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - /var/lib/desapega/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "desapega", "-d", "desapega"]
+      interval: 5s
+      retries: 20
 
   tunnel:
     image: cloudflare/cloudflared:2026.10.1

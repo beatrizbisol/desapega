@@ -1,7 +1,8 @@
 // Smoke test against a real `next start` build: proxy matcher, 405s, Auth.js sign-in and the admin page body.
 // Usage: npm run build && node scripts/smoke.mjs [routes|auth]
-import { spawn } from "node:child_process";
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFileSync, spawn } from "node:child_process";
+import pg from "pg";
+import { mkdtemp, rm } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -12,17 +13,26 @@ const ADMIN_HOST = `admin.test:${port}`;
 const PUBLIC_HOST = `site.test:${port}`;
 
 const dataDir = await mkdtemp(path.join(os.tmpdir(), "desapega-smoke-"));
-await cp("data/items.json", path.join(dataDir, "items.json"));
+const PG_NAME = `desapega-smoke-pg-${process.pid}`;
+execFileSync("docker", ["run", "-d", "--rm", "--name", PG_NAME, "-e", "POSTGRES_PASSWORD=smoke", "-e", "POSTGRES_DB=desapega", "-p", "127.0.0.1::5432", "postgres:16-alpine"]);
+const pgPort = execFileSync("docker", ["port", PG_NAME, "5432"]).toString().trim().split(":").pop();
+const DATABASE_URL = `postgres://postgres:smoke@127.0.0.1:${pgPort}/desapega`;
+for (let i = 0; i < 60; i += 1) {
+  try {
+    execFileSync("docker", ["exec", PG_NAME, "pg_isready", "-U", "postgres", "-h", "127.0.0.1"]);
+    break;
+  } catch {
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
 const SENTINEL_PHONE = "51987654321";
-await writeFile(
-  path.join(dataDir, "orders.json"),
-  JSON.stringify([{ id: "smoke-order", itemId: "x", itemTitle: "x", buyerName: "Sentinela", buyerPhone: SENTINEL_PHONE, paymentMethod: "pix", deliveryMethod: "pickup", status: "confirmed", createdAt: new Date().toISOString() }]),
-);
 
 const server = spawn("npx", ["next", "start", "--port", String(port), "--hostname", "127.0.0.1"], {
   env: {
     ...process.env,
     DATA_DIR: dataDir,
+    DATABASE_URL,
+    SEED_ITEMS_PATH: "data/items.json",
     ADMIN_HOST,
     AUTH_SECRET: "smoke-secret-smoke-secret-smoke-secret",
     AUTH_URL: `http://${ADMIN_HOST}`,
@@ -69,10 +79,18 @@ function expect(label, actual, predicate) {
 
 try {
   await waitReady();
+  const client = new pg.Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  await client.query(
+    `INSERT INTO orders (id, item_id, item_title, buyer_name, buyer_phone, payment_method, delivery_method, status)
+     VALUES (gen_random_uuid(), gen_random_uuid(), 'x', 'Sentinela', $1, 'pix', 'pickup', 'confirmed')`,
+    [SENTINEL_PHONE],
+  );
+  await client.end();
   if (mode === "routes") {
     const items = await request("GET", "/api/items", PUBLIC_HOST);
     expect("GET /api/items 200", items.status, (s) => s === 200);
-    const id = JSON.parse(items.body)[0]?.id ?? "x";
+    const id = JSON.parse(items.body).items[0]?.id ?? "x";
     expect("POST /api/items 405", (await request("POST", "/api/items", PUBLIC_HOST)).status, (s) => s === 405);
     expect("PATCH /api/items/:id 405", (await request("PATCH", `/api/items/${id}`, PUBLIC_HOST)).status, (s) => s === 405);
     expect("DELETE /api/items/:id 405", (await request("DELETE", `/api/items/${id}`, PUBLIC_HOST)).status, (s) => s === 405);
@@ -101,6 +119,7 @@ try {
   }
 } finally {
   server.kill("SIGTERM");
+  execFileSync("docker", ["rm", "-f", PG_NAME]);
   await rm(dataDir, { recursive: true, force: true });
 }
 

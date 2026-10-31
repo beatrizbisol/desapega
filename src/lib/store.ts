@@ -1,245 +1,288 @@
-import { promises as fs } from "fs";
 import path from "path";
+import type { PoolClient } from "pg";
+import { query, transaction } from "./db";
 import type { CreateItemInput, CreateOrderInput, Item, Order } from "./types";
 
 /** Pending reservations expire after 24h without payment confirmation. */
 export const RESERVATION_MS = 24 * 60 * 60 * 1000;
 
-// why: read at call time so DATA_DIR can point outside the repo in production
 export function dataDir() {
   return process.env.DATA_DIR?.trim() || path.join(process.cwd(), "data");
 }
 
-const itemsPath = () => path.join(dataDir(), "items.json");
-const ordersPath = () => path.join(dataDir(), "orders.json");
-
-// invariant: every exported operation runs inside this chain, one at a time, so a
-// read-modify-write never interleaves with another and two reservations of the
-// same item cannot both see it as available.
-// why: kept on globalThis because the production server loads this module once
-// for route handlers and again for pages; a module-level chain would give each
-// copy its own queue and let their writes interleave.
-const queueHolder = globalThis as typeof globalThis & {
-  __desapegaStoreQueue?: Promise<unknown>;
+type ItemRow = {
+  id: string;
+  title: string;
+  description: string;
+  price: string;
+  photos: string[];
+  status: Item["status"];
+  created_at: Date;
+  updated_at: Date;
 };
 
-function serialized<T>(task: () => Promise<T>): Promise<T> {
-  const run = (queueHolder.__desapegaStoreQueue ?? Promise.resolve()).then(task, task);
-  queueHolder.__desapegaStoreQueue = run.catch(() => undefined);
-  return run;
+type OrderRow = {
+  id: string;
+  item_id: string;
+  item_title: string;
+  buyer_name: string;
+  buyer_phone: string;
+  payment_method: Order["paymentMethod"];
+  delivery_method: Order["deliveryMethod"];
+  status: Order["status"];
+  created_at: Date;
+};
+
+const toItem = (row: ItemRow): Item => ({
+  id: row.id,
+  title: row.title,
+  description: row.description,
+  price: Number(row.price),
+  photos: row.photos,
+  status: row.status,
+  createdAt: row.created_at.toISOString(),
+  updatedAt: row.updated_at.toISOString(),
+});
+
+const toOrder = (row: OrderRow): Order => ({
+  id: row.id,
+  itemId: row.item_id,
+  itemTitle: row.item_title,
+  buyerName: row.buyer_name,
+  buyerPhone: row.buyer_phone,
+  paymentMethod: row.payment_method,
+  deliveryMethod: row.delivery_method,
+  status: row.status,
+  createdAt: row.created_at.toISOString(),
+});
+
+function isUniqueViolation(error: unknown, constraint: string) {
+  const pgError = error as { code?: string; constraint?: string };
+  return pgError?.code === "23505" && pgError.constraint === constraint;
 }
 
-async function ensureDataFiles() {
-  await fs.mkdir(dataDir(), { recursive: true });
-  for (const filePath of [itemsPath(), ordersPath()]) {
-    try {
-      await fs.access(filePath);
-    } catch {
-      await writeAtomic(filePath, "[]\n");
-    }
-  }
-}
-
-// invariant: the destination always holds a complete file; a crash mid-write
-// leaves only a stray .tmp next to it.
-async function writeAtomic(filePath: string, content: string) {
-  const tmpPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  await fs.writeFile(tmpPath, content, { encoding: "utf8", flush: true });
-  try {
-    await fs.rename(tmpPath, filePath);
-  } catch (error) {
-    await fs.rm(tmpPath, { force: true });
-    throw error;
-  }
-}
-
-async function readJson<T>(filePath: string): Promise<T> {
-  await ensureDataFiles();
-  const raw = await fs.readFile(filePath, "utf8");
-  return JSON.parse(raw) as T;
-}
-
-async function writeJson<T>(filePath: string, data: T) {
-  await ensureDataFiles();
-  await writeAtomic(filePath, `${JSON.stringify(data, null, 2)}\n`);
-}
-
+// why: the cutoff comes from the app clock, so expiry follows the same clock
+// RESERVATION_MS and the tests measure against.
 async function releaseExpiredReservations() {
-  const [items, orders] = await Promise.all([
-    readJson<Item[]>(itemsPath()),
-    readJson<Order[]>(ordersPath()),
-  ]);
-  const now = Date.now();
-  let changed = false;
-
-  for (const order of orders) {
-    if (order.status !== "pending") continue;
-    const age = now - new Date(order.createdAt).getTime();
-    if (age < RESERVATION_MS) continue;
-
-    order.status = "cancelled";
-    changed = true;
-
-    const item = items.find((entry) => entry.id === order.itemId);
-    if (item && item.status === "reserved") {
-      item.status = "available";
-      item.updatedAt = new Date().toISOString();
-    }
-  }
-
-  if (!changed) return;
-  // invariant: items first; if the orders write then fails, the next call finds
-  // the same expired orders again and converges, with no item left reserved.
-  await writeJson(itemsPath(), items);
-  await writeJson(ordersPath(), orders);
+  const cutoff = new Date(Date.now() - RESERVATION_MS);
+  await transaction(async (client) => {
+    const { rows } = await client.query<{ item_id: string }>(
+      `UPDATE orders SET status = 'cancelled'
+       WHERE status = 'pending' AND created_at < $1
+       RETURNING item_id`,
+      [cutoff],
+    );
+    if (rows.length === 0) return;
+    await client.query(
+      `UPDATE items SET status = 'available', updated_at = now()
+       WHERE id = ANY($1::text[]) AND status = 'reserved'`,
+      [rows.map((row) => row.item_id)],
+    );
+  });
 }
 
-async function listItemsUnlocked(): Promise<Item[]> {
+export async function listItems(): Promise<Item[]> {
   await releaseExpiredReservations();
-  const items = await readJson<Item[]>(itemsPath());
-  return items.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  const rows = await query<ItemRow>("SELECT * FROM items ORDER BY created_at DESC");
+  return rows.map(toItem);
+}
+
+export async function getItem(id: string): Promise<Item | null> {
+  await releaseExpiredReservations();
+  const rows = await query<ItemRow>("SELECT * FROM items WHERE id = $1", [id]);
+  return rows[0] ? toItem(rows[0]) : null;
+}
+
+export async function createItem(input: CreateItemInput): Promise<Item> {
+  const rows = await query<ItemRow>(
+    `INSERT INTO items (id, title, description, price, photos, status)
+     VALUES ($1, $2, $3, $4, $5, 'available') RETURNING *`,
+    [crypto.randomUUID(), input.title.trim(), input.description.trim(), input.price, input.photos],
   );
+  return toItem(rows[0]);
 }
 
-async function getItemUnlocked(id: string): Promise<Item | null> {
-  const items = await listItemsUnlocked();
-  return items.find((item) => item.id === id) ?? null;
-}
-
-async function createItemUnlocked(input: CreateItemInput): Promise<Item> {
-  const items = await listItemsUnlocked();
-  const now = new Date().toISOString();
-  const item: Item = {
-    id: crypto.randomUUID(),
-    title: input.title.trim(),
-    description: input.description.trim(),
-    price: input.price,
-    photos: input.photos,
-    status: "available",
-    createdAt: now,
-    updatedAt: now,
-  };
-  items.unshift(item);
-  await writeJson(itemsPath(), items);
-  return item;
-}
-
-async function updateItemUnlocked(
+export async function updateItem(
   id: string,
   patch: Partial<Pick<Item, "title" | "description" | "price" | "photos" | "status">>,
 ): Promise<Item | null> {
-  const items = await listItemsUnlocked();
-  const index = items.findIndex((item) => item.id === id);
-  if (index < 0) return null;
-
-  const updated: Item = {
-    ...items[index],
-    ...patch,
-    updatedAt: new Date().toISOString(),
-  };
-  items[index] = updated;
-  await writeJson(itemsPath(), items);
-  return updated;
-}
-
-async function deleteItemUnlocked(id: string): Promise<boolean> {
-  const items = await listItemsUnlocked();
-  const next = items.filter((item) => item.id !== id);
-  if (next.length === items.length) return false;
-  await writeJson(itemsPath(), next);
-  return true;
-}
-
-async function listOrdersUnlocked(): Promise<Order[]> {
-  await releaseExpiredReservations();
-  const orders = await readJson<Order[]>(ordersPath());
-  return orders.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  const rows = await query<ItemRow>(
+    `UPDATE items SET
+       title = COALESCE($2, title),
+       description = COALESCE($3, description),
+       price = COALESCE($4, price),
+       photos = COALESCE($5, photos),
+       status = COALESCE($6, status),
+       updated_at = now()
+     WHERE id = $1 RETURNING *`,
+    [
+      id,
+      patch.title ?? null,
+      patch.description ?? null,
+      patch.price ?? null,
+      patch.photos ?? null,
+      patch.status ?? null,
+    ],
   );
+  return rows[0] ? toItem(rows[0]) : null;
 }
 
-async function createOrderUnlocked(input: CreateOrderInput): Promise<Order> {
-  const item = await getItemUnlocked(input.itemId);
-  if (!item) {
-    throw new Error("ITEM_NOT_FOUND");
-  }
-  if (item.status !== "available") {
-    throw new Error("ITEM_UNAVAILABLE");
-  }
+export async function deleteItem(id: string): Promise<boolean> {
+  const rows = await query("DELETE FROM items WHERE id = $1 RETURNING id", [id]);
+  return rows.length > 0;
+}
 
-  const orders = await readJson<Order[]>(ordersPath());
-  const phone = input.buyerPhone.trim();
-  if (orders.some((entry) => entry.status === "pending" && entry.buyerPhone === phone)) {
-    throw new Error("PHONE_HAS_PENDING");
-  }
+export async function listOrders(): Promise<Order[]> {
+  await releaseExpiredReservations();
+  const rows = await query<OrderRow>("SELECT * FROM orders ORDER BY created_at DESC");
+  return rows.map(toOrder);
+}
 
-  const order: Order = {
-    id: crypto.randomUUID(),
-    itemId: item.id,
-    itemTitle: item.title,
-    buyerName: input.buyerName.trim(),
-    buyerPhone: input.buyerPhone.trim(),
-    paymentMethod: input.paymentMethod,
-    deliveryMethod: input.deliveryMethod,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-  };
+async function lockItem(client: PoolClient, id: string) {
+  const { rows } = await client.query<ItemRow>(
+    "SELECT * FROM items WHERE id = $1 FOR UPDATE",
+    [id],
+  );
+  return rows[0] ?? null;
+}
 
-  const previousOrders = [...orders];
-  orders.unshift(order);
-  await writeJson(ordersPath(), orders);
+export async function createOrder(input: CreateOrderInput): Promise<Order> {
+  await releaseExpiredReservations();
   try {
-    await updateItemUnlocked(item.id, { status: "reserved" });
+    return await transaction(async (client) => {
+      const item = await lockItem(client, input.itemId);
+      if (!item) throw new Error("ITEM_NOT_FOUND");
+      if (item.status !== "available") throw new Error("ITEM_UNAVAILABLE");
+
+      const { rows } = await client.query<OrderRow>(
+        `INSERT INTO orders (id, item_id, item_title, buyer_name, buyer_phone,
+                             payment_method, delivery_method, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
+        [
+          crypto.randomUUID(),
+          item.id,
+          item.title,
+          input.buyerName.trim(),
+          input.buyerPhone.trim(),
+          input.paymentMethod,
+          input.deliveryMethod,
+        ],
+      );
+      await client.query(
+        "UPDATE items SET status = 'reserved', updated_at = now() WHERE id = $1",
+        [item.id],
+      );
+      return toOrder(rows[0]);
+    });
   } catch (error) {
-    // invariant: an order is never left pending on an item still listed as
-    // available, which would let a second buyer reserve the same item.
-    await writeJson(ordersPath(), previousOrders);
+    if (isUniqueViolation(error, "orders_one_pending_per_phone")) {
+      throw new Error("PHONE_HAS_PENDING");
+    }
+    if (isUniqueViolation(error, "orders_one_pending_per_item")) {
+      throw new Error("ITEM_UNAVAILABLE");
+    }
     throw error;
   }
-  return order;
 }
 
-async function updateOrderStatusUnlocked(
+export async function updateOrderStatus(
   id: string,
   status: Order["status"],
 ): Promise<Order | null> {
   await releaseExpiredReservations();
-  const orders = await readJson<Order[]>(ordersPath());
-  const index = orders.findIndex((order) => order.id === id);
-  if (index < 0) return null;
-
-  const current = orders[index];
-  if (current.status === status) return current;
-  if (current.status !== "pending" && status !== "cancelled") {
-    throw new Error("INVALID_TRANSITION");
-  }
-
-  const updated: Order = { ...current, status };
-  orders[index] = updated;
-  await writeJson(ordersPath(), orders);
-
-  if (status === "confirmed") {
-    await updateItemUnlocked(current.itemId, { status: "sold" });
-  } else if (status === "cancelled") {
-    const item = await getItemUnlocked(current.itemId);
-    if (item && item.status === "reserved") {
-      await updateItemUnlocked(current.itemId, { status: "available" });
+  return transaction(async (client) => {
+    const { rows } = await client.query<OrderRow>(
+      "SELECT * FROM orders WHERE id::text = $1 FOR UPDATE",
+      [id],
+    );
+    const current = rows[0];
+    if (!current) return null;
+    if (current.status === status) return toOrder(current);
+    if (current.status !== "pending" && status !== "cancelled") {
+      throw new Error("INVALID_TRANSITION");
     }
-  }
 
-  return updated;
+    const updated = await client.query<OrderRow>(
+      "UPDATE orders SET status = $2 WHERE id = $1 RETURNING *",
+      [current.id, status],
+    );
+    if (status === "confirmed") {
+      await client.query(
+        "UPDATE items SET status = 'sold', updated_at = now() WHERE id = $1",
+        [current.item_id],
+      );
+    } else if (status === "cancelled") {
+      await client.query(
+        "UPDATE items SET status = 'available', updated_at = now() WHERE id = $1 AND status = 'reserved'",
+        [current.item_id],
+      );
+    }
+    return toOrder(updated.rows[0]);
+  });
 }
 
-export const listItems = () => serialized(listItemsUnlocked);
-export const getItem = (id: string) => serialized(() => getItemUnlocked(id));
-export const createItem = (input: CreateItemInput) =>
-  serialized(() => createItemUnlocked(input));
-export const updateItem = (...args: Parameters<typeof updateItemUnlocked>) =>
-  serialized(() => updateItemUnlocked(...args));
-export const deleteItem = (id: string) => serialized(() => deleteItemUnlocked(id));
-export const listOrders = () => serialized(listOrdersUnlocked);
-export const createOrder = (input: CreateOrderInput) =>
-  serialized(() => createOrderUnlocked(input));
-export const updateOrderStatus = (...args: Parameters<typeof updateOrderStatusUnlocked>) =>
-  serialized(() => updateOrderStatusUnlocked(...args));
+export const PAGE_DEFAULT = 20;
+export const PAGE_MAX = 100;
+
+export type PageQuery = { limit: number; cursor: string | null; status: string | null };
+export type Page<T> = { rows: T[]; nextCursor: string | null };
+
+// invariant: a cursor is the (created_at, id) of the last row served, with
+// created_at as Postgres text so microseconds survive; ordering by both columns
+// makes every row appear on exactly one page even when timestamps tie.
+function encodeCursor(createdAt: string, id: string) {
+  return Buffer.from(JSON.stringify([createdAt, id])).toString("base64url");
+}
+
+function decodeCursor(cursor: string) {
+  try {
+    const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (
+      Array.isArray(value) &&
+      value.length === 2 &&
+      typeof value[0] === "string" &&
+      !Number.isNaN(Date.parse(value[0])) &&
+      typeof value[1] === "string"
+    ) {
+      return value as [string, string];
+    }
+  } catch {}
+  throw new Error("INVALID_CURSOR");
+}
+
+async function listPage<Row extends { id: string }, T>(
+  table: "items" | "orders",
+  page: PageQuery,
+  map: (row: Row) => T,
+): Promise<Page<T>> {
+  await releaseExpiredReservations();
+  const params: unknown[] = [];
+  const where: string[] = [];
+  if (page.status) {
+    params.push(page.status);
+    where.push(`status = $${params.length}`);
+  }
+  if (page.cursor) {
+    const [createdAt, id] = decodeCursor(page.cursor);
+    params.push(createdAt, id);
+    where.push(`(created_at, id::text) < ($${params.length - 1}::timestamptz, $${params.length})`);
+  }
+  params.push(page.limit + 1);
+  const rows = await query<Row & { cursor_ts: string }>(
+    `SELECT *, created_at::text AS cursor_ts FROM ${table}
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY created_at DESC, id::text DESC
+     LIMIT $${params.length}`,
+    params,
+  );
+  const hasMore = rows.length > page.limit;
+  const served = rows.slice(0, page.limit);
+  const last = served[served.length - 1];
+  return {
+    rows: served.map(map),
+    nextCursor: hasMore && last ? encodeCursor(last.cursor_ts, String(last.id)) : null,
+  };
+}
+
+export const listItemsPage = (page: PageQuery) => listPage<ItemRow, Item>("items", page, toItem);
+export const listOrdersPage = (page: PageQuery) => listPage<OrderRow, Order>("orders", page, toOrder);

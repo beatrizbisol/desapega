@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { adminError, requireAdmin } from "@/lib/admin-guard";
+import { putMedia, r2Enabled } from "@/lib/media";
 import { extensionForMime, uploadsDir } from "@/lib/uploads";
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -31,6 +32,11 @@ export async function POST(request: Request) {
 
     const bytes = Buffer.from(await file.arrayBuffer());
     const filename = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+    if (r2Enabled()) {
+      const url = await putMedia(`uploads/${filename}`, bytes, file.type);
+      return NextResponse.json({ url }, { status: 201 });
+    }
+
     const dir = uploadsDir();
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, filename), bytes);

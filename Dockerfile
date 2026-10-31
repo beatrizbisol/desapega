@@ -12,6 +12,7 @@ COPY --from=build /app/package.json /app/next.config.ts ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
+COPY --from=build /app/data/items.json ./seed/items.json
 USER node
 EXPOSE 43127
 CMD ["npx", "next", "start", "--port", "43127", "--hostname", "0.0.0.0"]
