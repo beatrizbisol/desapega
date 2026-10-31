@@ -1,10 +1,16 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AdminPanel } from "@/components/admin-panel";
 import { Button } from "@/components/ui/button";
+import { isAdmin } from "@/lib/admin-guard";
 import { listItems, listOrders } from "@/lib/store";
 import { logoutAction } from "../actions";
 
 export default async function AdminPage() {
+  // hazard: the layout's redirect does not stop this page from rendering into
+  // the same response, so without this check the order list (names and phones)
+  // would ship in the body of the redirect.
+  if (!(await isAdmin())) redirect("/admin/login");
   const [items, orders] = await Promise.all([listItems(), listOrders()]);
   return (
     <main className="flex-1 bg-[var(--foam)]">

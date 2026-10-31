@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTempDataDir } from "./helpers";
@@ -14,6 +14,7 @@ let tmp: Awaited<ReturnType<typeof useTempDataDir>>;
 
 beforeEach(async () => {
   tmp = await useTempDataDir();
+  process.env.ALLOWED_EMAILS = "filipemlins@gmail.com";
 });
 
 afterEach(async () => {
@@ -35,6 +36,7 @@ describe("uploads", () => {
     expect(url).toMatch(/^\/uploads\/[0-9]+-[0-9a-f]{8}\.png$/);
 
     const name = url.replace("/uploads/", "");
+    expect(new Uint8Array(await readFile(path.join(tmp.dir, "uploads", name)))).toEqual(PNG);
     const served = await serve(new Request(`http://site.test${url}`), params(name));
     expect(served.status).toBe(200);
     expect(served.headers.get("content-type")).toBe("image/png");

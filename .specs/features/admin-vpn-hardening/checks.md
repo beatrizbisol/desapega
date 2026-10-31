@@ -3,7 +3,7 @@
 Profile: light
 Plan: `.specs/features/admin-vpn-hardening/plan.md`
 
-24 checks in 4 slices · 5 one-way doors · 1 open, of which 0 block (1 blocks go-live)
+29 checks in 4 slices · 5 one-way doors · 1 open, of which 0 block (1 blocks go-live)
 
 ## Checks
 
@@ -92,6 +92,24 @@ Proof: `npx vitest run tests/store.test.ts -t "durable write"`
 **C24** - Confirmar um pedido que não está `pending` lança `INVALID_TRANSITION` (rota → 409) e não mexe no item (P1)
 Proof: `npx vitest run tests/store.test.ts -t "order transitions"`
 
+### Review fixes (PR #2 findings B1, A4, N2, N3, V1)
+
+**C25** - Sem sessão, a página `/admin` redireciona antes de ler pedidos, e no servidor real o corpo do 307 não contém o telefone de um pedido sentinela (B1)
+Proof: `npx vitest run tests/admin-page.test.ts -t "page guard"`
+Proof: `npm run build && node scripts/smoke.mjs routes`
+
+**C26** - Uma sessão cujo e-mail saiu de `ALLOWED_EMAILS` recebe 401 nas 6 operações de admin (A4)
+Proof: `npx vitest run tests/admin-routes.test.ts -t "allowlist on every request"`
+
+**C27** - Um 500 de admin registra o erro com `console.error` (N2)
+Proof: `npx vitest run tests/admin-routes.test.ts -t "logs unexpected errors"`
+
+**C28** - O login real (POST com CSRF em `/api/auth/signin/google`) responde 302 para `https://accounts.google.com/` (V1)
+Proof: `npm run build && node scripts/smoke.mjs auth`
+
+**C29** - `PATCH /api/admin/orders/<id>` confirmando um pedido cancelado responde 409 (P1 na rota)
+Proof: `npx vitest run tests/admin-routes.test.ts -t "invalid order transition"`
+
 ## Coverage
 
 | Set (size) | Member -> proof | Unproven |
@@ -110,7 +128,7 @@ Proof: `npx vitest run tests/store.test.ts -t "order transitions"`
 | `DELETE /api/admin/items/[id]` statuses (4) | 200 C17 · 401 C4 · 404 C17 · 500 C17 | - |
 | `GET /api/admin/orders` statuses (4) | 200 C6 · 401 C4 · 404 C1 · 500 C17 | - |
 | `PATCH /api/admin/orders/[id]` statuses (5) | 200 C17 · 400 C17 · 401 C4 · 404 C17 · 500 C17 | - |
-| `PATCH /api/admin/orders/[id]` transição inválida (1) | 409 C24 | - |
+| `PATCH /api/admin/orders/[id]` transição inválida (1) | 409 C24 C29 | - |
 | `POST /api/admin/upload` statuses (5) | 201 C15 · 400 C17 · 401 C4 · 404 C1 · 500 C17 | - |
 | `GET /uploads/[file]` statuses (2) | 200 C15 · 404 C15 | - |
 | `GET,POST /api/auth/*` statuses (3) | 200 C18 · 302 C18 · 404 C1 | - |

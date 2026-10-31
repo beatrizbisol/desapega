@@ -15,3 +15,7 @@ export const UPLOAD_TYPES: Record<string, string> = {
   webp: "image/webp",
   gif: "image/gif",
 };
+
+export function extensionForMime(mime: string) {
+  return Object.keys(UPLOAD_TYPES).find((ext) => UPLOAD_TYPES[ext] === mime) ?? null;
+}

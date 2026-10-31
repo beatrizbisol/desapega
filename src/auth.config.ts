@@ -9,6 +9,15 @@ function allowedEmails() {
     .filter(Boolean);
 }
 
+/**
+ * invariant: checked at sign-in and again on every admin request, so removing an
+ * e-mail from ALLOWED_EMAILS locks that person out without waiting for their
+ * 30-day session to expire.
+ */
+export function isAllowedEmail(email: string | null | undefined) {
+  return !!email && allowedEmails().includes(email.toLowerCase());
+}
+
 export const authConfig = {
   session: { strategy: "jwt" },
   trustHost: true,
@@ -16,9 +25,8 @@ export const authConfig = {
   providers: [Google],
   callbacks: {
     signIn({ profile }) {
-      const email = profile?.email?.toLowerCase();
-      if (!email || profile?.email_verified === false) return false;
-      return allowedEmails().includes(email);
+      if (profile?.email_verified === false) return false;
+      return isAllowedEmail(profile?.email);
     },
   },
 } satisfies NextAuthConfig;
