@@ -3,7 +3,7 @@ export function Hero() {
     <section className="relative isolate min-h-[100svh] overflow-hidden text-white">
       <div className="hero-sky absolute inset-0" aria-hidden />
       <div className="hero-glow absolute inset-0" aria-hidden />
-      <div className="hero-waves absolute inset-x-0 bottom-0 h-[42%]" aria-hidden />
+      <div className="hero-waves absolute inset-x-[-3%] bottom-0 h-[42%]" aria-hidden />
 
       <div className="relative mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col justify-end px-5 pb-16 pt-28 sm:px-8 sm:pb-20">
         <p className="hero-fade font-[family-name:var(--font-display)] text-4xl leading-none tracking-tight sm:text-6xl md:text-7xl">
