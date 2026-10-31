@@ -6,9 +6,20 @@ services:
     environment:
       DATA_DIR: /data
       UPLOADS_DIR: /data/uploads
+      # why: traffic arrives through Cloudflare, which keeps a client-sent
+      # X-Forwarded-For; CF-Connecting-IP is the address Cloudflare saw.
+      CLIENT_IP_HEADER: cf-connecting-ip
     ports:
-      # invariant: bound to loopback only; the internet reaches it through Caddy
-      # and the admin through `tailscale serve`, never directly.
+      # invariant: bound to loopback only; the public site reaches it through the
+      # Cloudflare Tunnel below and the admin through `tailscale serve`.
       - "127.0.0.1:43127:43127"
     volumes:
       - /var/lib/desapega:/data
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.1
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: .env.production
+    depends_on:
+      - web

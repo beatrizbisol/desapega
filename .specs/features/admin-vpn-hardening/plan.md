@@ -94,6 +94,9 @@ Quando isso entrar: o público só vê a vitrine e consegue reservar; o painel s
 
 **Acceptance Criteria**
 
+23. WHERE `CLIENT_IP_HEADER` está definido the system SHALL usar só esse cabeçalho como IP do cliente no limite de reservas, ignorando `X-Forwarded-For`
+24. WHEN o site está publicado THEN the system SHALL responder 200 em `https://desapega.useclubapp.com/api/items` e bloquear `/admin`, `/api/admin/orders` e `/api/auth/providers` nesse host (403 do WAF ou 404 do app)
+
 20. The system SHALL incluir `Dockerfile` e `docker-compose.prod.yml` que publicam o app só em `127.0.0.1:43127` e montam `DATA_DIR` num volume do host
 21. The system SHALL incluir um `Caddyfile` de exemplo que serve o domínio público com HTTPS e responde 404 para `/admin*`, `/api/admin*` e `/api/auth*`
 22. The system SHALL documentar em `docs/DEPLOY.md` as variáveis (`ADMIN_HOST`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `ALLOWED_EMAILS`, `DATA_DIR`, `UPLOADS_DIR`), o comando `tailscale serve` e o cron de backup de hora em hora
@@ -107,7 +110,7 @@ Quando isso entrar: o público só vê a vitrine e consegue reservar; o painel s
 | ADM-01 | S1 | 1, 2, 3, 4, 5, 6, 7, 8, 9 | Pending |
 | PUB-01 | S2 | 10, 11, 12, 13 | Pending |
 | DATA-01 | S3 | 14, 15, 16, 17, 18, 19 | Pending |
-| OPS-01 | S4 | 20, 21, 22 | Pending |
+| OPS-01 | S4 | 20, 21, 22, 23, 24 | Pending |
 
 ## Observable
 
@@ -184,6 +187,8 @@ None - os formatos de `Item` e `Order` não mudam; só muda onde os arquivos fic
 | 3. Rotas novas consumidas pelo front | prefixo `/api/admin/*` para escrita; `/uploads/[file]` servido por route handler lendo `UPLOADS_DIR` | manter as rotas atuais e filtrar por método no Caddy: o bloqueio dependeria de regra por método e verbo, fácil de errar no próximo endpoint |
 | 4. Topologia de deploy | app em Docker publicado em `127.0.0.1:43127`; Caddy no host para o domínio; `tailscale serve --bg --https=8443 http://127.0.0.1:43127` para admin | Tailscale Funnel para o público: usuário escolheu domínio próprio |
 | 5. Runner de teste | `vitest` como devDependency, script `"test": "vitest run"` | `node --test`: não resolve o alias `@/` sem loader extra |
+
+| 6. Entrada pública por Cloudflare Tunnel (supera a parte "Caddy no host" do door 4; decidido pelo usuário em 2026-10-30 ao ver a VPS) | serviço `tunnel` (`cloudflare/cloudflared`) no `docker-compose.prod.yml` com `TUNNEL_TOKEN`; hostname público `desapega.useclubapp.com` → `web:43127`; regra WAF bloqueando `/admin`, `/api/admin`, `/api/auth` nesse host; `CLIENT_IP_HEADER=cf-connecting-ip` | Caddy no host com nuvem cinza: a 443 pública já é do Caddy do harmonica-api e o ufw só aceita IPs da Cloudflare ("origin lockdown"); pendurar no Caddy do harmonica-api: edita e reinicia o proxy de produção de outros apps |
 
 - Nothing else in this change is hard to reverse
 

@@ -29,13 +29,16 @@ export function activeWindowCount() {
   return windows.size;
 }
 
-/**
- * why: Caddy overwrites X-Forwarded-For with the real peer address, and the app
- * listens only on 127.0.0.1, so the first entry is the visitor's IP.
- */
+// hazard: without CLIENT_IP_HEADER the key is the first X-Forwarded-For entry,
+// which the client controls whenever a proxy appends to that header instead of
+// replacing it, as Cloudflare does; docker-compose.prod.yml sets
+// CLIENT_IP_HEADER=cf-connecting-ip for that reason.
 export function clientIp(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim();
+  const header = process.env.CLIENT_IP_HEADER?.trim().toLowerCase();
+  const raw = header
+    ? request.headers.get(header)
+    : request.headers.get("x-forwarded-for");
+  const ip = raw?.split(",")[0]?.trim();
   if (!ip) return "local";
   return ip.includes(":") ? ipv6Prefix64(ip) : ip;
 }
