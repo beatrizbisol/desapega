@@ -29,11 +29,11 @@ Guarde o client ID e o secret para o passo 4.
 
 ## 3. Dados
 
+Itens e pedidos ficam no Postgres do compose (`/var/lib/desapega/postgres`). Na primeira subida, com a tabela `items` vazia, o app importa `data/items.json` (copiado na imagem como `/app/seed/items.json`); as fotos desses itens já apontam para o R2.
+
 ```bash
-sudo mkdir -p /var/lib/desapega/uploads
-sudo cp data/items.json /var/lib/desapega/items.json   # catálogo inicial, só na primeira vez
-echo '[]' | sudo tee /var/lib/desapega/orders.json
-sudo chown -R 1000:1000 /var/lib/desapega              # usuário `node` do container
+sudo mkdir -p /var/lib/desapega/uploads /var/lib/desapega/postgres
+sudo chown -R 1000:1000 /var/lib/desapega/uploads      # usuário `node` do container
 ```
 
 ## 4. Variáveis (`.env.production`, fora do git)
@@ -47,6 +47,10 @@ sudo chown -R 1000:1000 /var/lib/desapega              # usuário `node` do cont
 | `AUTH_GOOGLE_SECRET` | client secret do passo 2 |
 | `ALLOWED_EMAILS` | `filipemlins@gmail.com,beatrizbisol@gmail.com` |
 | `TUNNEL_TOKEN` | token do túnel do passo 1 (lido pelo serviço `tunnel`) |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 24` (lido pelo serviço `db`) |
+| `DATABASE_URL` | `postgres://desapega:<POSTGRES_PASSWORD>@db:5432/desapega` |
+| `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | token R2 "Object Read & Write" só no bucket `desapega` (conta do Filipe) |
+| `MEDIA_BASE_URL` | URL pública do bucket (`https://pub-7ed759d7f6bb4ca09cca6c3bbe0fb530.r2.dev`) |
 | `CLIENT_IP_HEADER` | `cf-connecting-ip` (já definido no compose) |
 | `DATA_DIR` | `/data` (já definido no compose) |
 | `UPLOADS_DIR` | `/data/uploads` (já definido no compose) |
@@ -54,7 +58,8 @@ sudo chown -R 1000:1000 /var/lib/desapega              # usuário `node` do cont
 ## 5. App
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+cd /opt/desapega
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:43127/api/items   # 200
 ```
 
@@ -74,15 +79,15 @@ sudo cp deploy/backup.sh /usr/local/bin/desapega-backup
 echo '0 * * * * root /usr/local/bin/desapega-backup' | sudo tee /etc/cron.d/desapega-backup
 ```
 
-Guarda 7 dias em `/var/backups/desapega`. A VPS já tem o remote `r2:` do rclone (usado pelo backup do harmonica-analytics); para copiar também para fora da VPS, use `0 * * * * root BACKUP_REMOTE=r2:backup/desapega /usr/local/bin/desapega-backup` no cron.
+Guarda 7 dias em `/var/backups/desapega`. A VPS já tem o remote `r2:` do rclone (usado pelo backup do harmonica-analytics); para copiar também para fora da VPS, use `0 * * * * root BACKUP_REMOTE=r2:backup/desapega RCLONE_FLAGS="--bind 37.120.166.108" /usr/local/bin/desapega-backup` no cron.
 
-Restaurar: `docker compose -f docker-compose.prod.yml stop`, extraia o `.tar.gz` em `/var/lib/desapega` e suba de novo.
+Restaurar: extraia o `.tar.gz` e rode `docker compose --env-file .env.production -f docker-compose.prod.yml exec -T db psql -U desapega desapega < desapega.sql` num banco vazio.
 
 ## Atualizar
 
 ```bash
 git pull
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
 Os dados ficam em `/var/lib/desapega`, então `git pull` não toca neles.
