@@ -15,6 +15,12 @@ export async function PATCH(request: Request, { params }: Params) {
     if (body.description !== undefined) {
       patch.description = String(body.description).trim();
     }
+    if (patch.title === "" || patch.description === "") {
+      return NextResponse.json(
+        { error: "Título e descrição não podem ficar vazios." },
+        { status: 400 },
+      );
+    }
     if (body.price !== undefined) {
       const price = Number(body.price);
       if (!Number.isFinite(price) || price <= 0) {
@@ -23,9 +29,16 @@ export async function PATCH(request: Request, { params }: Params) {
       patch.price = price;
     }
     if (body.photos !== undefined) {
-      patch.photos = Array.isArray(body.photos)
+      const photos: string[] = Array.isArray(body.photos)
         ? body.photos.map(String).filter(Boolean)
         : [];
+      if (photos.length === 0) {
+        return NextResponse.json(
+          { error: "Adicione pelo menos uma foto." },
+          { status: 400 },
+        );
+      }
+      patch.photos = photos;
     }
     if (body.status !== undefined) {
       if (!["available", "reserved", "sold"].includes(body.status)) {

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Trash2, Upload } from "lucide-react";
+import { Pencil, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,7 @@ export function AdminPanel({
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -101,29 +102,48 @@ export function AdminPanel({
     }
   }
 
-  async function createItem(event: React.FormEvent) {
+  function resetForm() {
+    setEditingId(null);
+    setTitle("");
+    setDescription("");
+    setPrice("");
+    setPhotos([]);
+  }
+
+  function startEdit(item: Item) {
+    setEditingId(item.id);
+    setTitle(item.title);
+    setDescription(item.description);
+    setPrice(String(item.price).replace(".", ","));
+    setPhotos(item.photos);
+    setError(null);
+    setMessage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function saveItem(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
-      const response = await fetch("/api/admin/items", {
-        method: "POST",
-        headers: JSON_HEADERS,
-        body: JSON.stringify({
-          title,
-          description,
-          price: Number(price.replace(",", ".")),
-          photos,
-        }),
-      });
+      const response = await fetch(
+        editingId ? `/api/admin/items/${editingId}` : "/api/admin/items",
+        {
+          method: editingId ? "PATCH" : "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({
+            title,
+            description,
+            price: Number(price.replace(",", ".")),
+            photos,
+          }),
+        },
+      );
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível salvar.");
-      setTitle("");
-      setDescription("");
-      setPrice("");
-      setPhotos([]);
-      setMessage("Item cadastrado.");
+      setMessage(editingId ? "Item atualizado." : "Item cadastrado.");
+      resetForm();
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar.");
@@ -149,6 +169,7 @@ export function AdminPanel({
 
   async function removeItem(id: string) {
     if (!window.confirm("Excluir este item?")) return;
+    if (id === editingId) resetForm();
     const response = await fetch(`/api/admin/items/${id}`, { method: "DELETE" });
     if (!response.ok) {
       const data = await response.json();
@@ -176,15 +197,17 @@ export function AdminPanel({
   return (
     <div className="space-y-12">
       <form
-        onSubmit={createItem}
+        onSubmit={saveItem}
         className="space-y-5 rounded-xl border border-[var(--line)] bg-white p-6"
       >
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-2xl text-[var(--ocean-ink)]">
-            Novo item
+            {editingId ? "Editar item" : "Novo item"}
           </h2>
           <p className="mt-1 text-sm text-[var(--ink-soft)]">
-            Cada anúncio vale para 1 unidade. Fotos, título, descrição e valor.
+            {editingId
+              ? "Altere fotos, título, descrição ou valor e salve."
+              : "Cada anúncio vale para 1 unidade. Fotos, título, descrição e valor."}
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -258,9 +281,16 @@ export function AdminPanel({
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
         {message && <p className="text-sm text-[var(--ocean)]">{message}</p>}
-        <Button type="submit" disabled={saving || uploading}>
-          {saving ? "Salvando…" : "Publicar item"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={saving || uploading}>
+            {saving ? "Salvando…" : editingId ? "Salvar alterações" : "Publicar item"}
+          </Button>
+          {editingId && (
+            <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
+              Cancelar edição
+            </Button>
+          )}
+        </div>
       </form>
 
       <section className="space-y-4">
@@ -310,6 +340,15 @@ export function AdminPanel({
                       <SelectItem value="sold">Vendido</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => startEdit(item)}
+                    aria-label="Editar"
+                  >
+                    <Pencil />
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"

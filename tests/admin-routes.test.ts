@@ -119,6 +119,19 @@ describe("admin review fixes", () => {
     spy.mockRestore();
   });
 
+  it("PATCH item edits all fields and rejects blanking required ones", async () => {
+    session.current = { user: { email: "filipemlins@gmail.com" } };
+    const a = await createItem(item("A"));
+    const edit = { title: "Mesa", description: "Nova", price: 80, photos: ["/x.jpg", "/y.jpg"] };
+    const res = await itemRoute.PATCH(json("PATCH", edit), params(a.id));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject(edit);
+
+    for (const bad of [{ title: "  " }, { description: "" }, { photos: [] }]) {
+      expect((await itemRoute.PATCH(json("PATCH", bad), params(a.id))).status, JSON.stringify(bad)).toBe(400);
+    }
+  });
+
   it("invalid order transition answers 409", async () => {
     session.current = { user: { email: "filipemlins@gmail.com" } };
     const a = await createItem(item("A"));
