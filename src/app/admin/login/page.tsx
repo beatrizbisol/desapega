@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
+import { isAdmin } from "@/lib/admin-guard";
 import { googleLoginAction } from "../actions";
 
 export default async function AdminLoginPage({
@@ -8,8 +8,7 @@ export default async function AdminLoginPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const session = await auth();
-  if (session?.user) redirect("/admin");
+  if (await isAdmin()) redirect("/admin");
   const { error } = await searchParams;
 
   return (

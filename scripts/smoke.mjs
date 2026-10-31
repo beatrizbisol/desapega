@@ -1,7 +1,7 @@
-// Smoke test against a real `next start` build: proxy matcher, 405s and Auth.js mount.
+// Smoke test against a real `next start` build: proxy matcher, 405s, Auth.js sign-in and the admin page body.
 // Usage: npm run build && node scripts/smoke.mjs [routes|auth]
 import { spawn } from "node:child_process";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +13,11 @@ const PUBLIC_HOST = `site.test:${port}`;
 
 const dataDir = await mkdtemp(path.join(os.tmpdir(), "desapega-smoke-"));
 await cp("data/items.json", path.join(dataDir, "items.json"));
+const SENTINEL_PHONE = "51987654321";
+await writeFile(
+  path.join(dataDir, "orders.json"),
+  JSON.stringify([{ id: "smoke-order", itemId: "x", itemTitle: "x", buyerName: "Sentinela", buyerPhone: SENTINEL_PHONE, paymentMethod: "pix", deliveryMethod: "pickup", status: "confirmed", createdAt: new Date().toISOString() }]),
+);
 
 const server = spawn("npx", ["next", "start", "--port", String(port), "--hostname", "127.0.0.1"], {
   env: {
@@ -28,10 +33,10 @@ const server = spawn("npx", ["next", "start", "--port", String(port), "--hostnam
   stdio: ["ignore", "pipe", "pipe"],
 });
 
-function request(method, urlPath, host) {
+function request(method, urlPath, host, extraHeaders = {}, body) {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { host: "127.0.0.1", port, method, path: urlPath, headers: { host } },
+      { host: "127.0.0.1", port, method, path: urlPath, headers: { host, ...extraHeaders } },
       (res) => {
         let body = "";
         res.on("data", (chunk) => (body += chunk));
@@ -39,7 +44,7 @@ function request(method, urlPath, host) {
       },
     );
     req.on("error", reject);
-    req.end();
+    req.end(body);
   });
 }
 
@@ -76,11 +81,22 @@ try {
     expect("GET /api/admin/orders public host 404", (await request("GET", "/api/admin/orders", PUBLIC_HOST)).status, (s) => s === 404);
     const admin = await request("GET", "/admin", ADMIN_HOST);
     expect("GET /admin admin host no cookie -> 307 /admin/login", [admin.status, admin.headers.location], ([s, l]) => s === 307 && /\/admin\/login$/.test(l ?? ""));
+    expect("GET /admin redirect body carries no order data", admin.body.includes(SENTINEL_PHONE), (leaked) => leaked === false);
   } else {
     const providers = await request("GET", "/api/auth/providers", ADMIN_HOST);
     expect("GET /api/auth/providers 200 with google", [providers.status, providers.body.includes('"google"')], ([s, g]) => s === 200 && g);
-    const signin = await request("GET", "/api/auth/signin/google", ADMIN_HOST);
-    expect("GET /api/auth/signin/google 302", [signin.status, signin.headers.location], ([s, l]) => s === 302 && /accounts\.google\.com|\/admin\/login/.test(l ?? ""));
+    // The real sign-in is a POST carrying the CSRF token and its cookie.
+    const csrf = await request("GET", "/api/auth/csrf", ADMIN_HOST);
+    const { csrfToken } = JSON.parse(csrf.body);
+    const cookie = (csrf.headers["set-cookie"] ?? []).map((c) => c.split(";")[0]).join("; ");
+    const signin = await request(
+      "POST",
+      "/api/auth/signin/google",
+      ADMIN_HOST,
+      { cookie, "content-type": "application/x-www-form-urlencoded" },
+      new URLSearchParams({ csrfToken, callbackUrl: "/admin" }).toString(),
+    );
+    expect("POST /api/auth/signin/google 302 to Google", [signin.status, signin.headers.location?.slice(0, 60)], ([s, l]) => s === 302 && /^https:\/\/accounts\.google\.com\//.test(l ?? ""));
     expect("GET /api/auth/providers public host 404", (await request("GET", "/api/auth/providers", PUBLIC_HOST)).status, (s) => s === 404);
   }
 } finally {

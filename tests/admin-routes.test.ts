@@ -18,6 +18,7 @@ let tmp: Awaited<ReturnType<typeof useTempDataDir>>;
 beforeEach(async () => {
   tmp = await useTempDataDir();
   session.current = null;
+  process.env.ALLOWED_EMAILS = "filipemlins@gmail.com";
 });
 
 afterEach(async () => {
@@ -94,5 +95,36 @@ describe("admin routes", () => {
     for (const [name, run] of operations) {
       expect((await run()).status, name).toBe(500);
     }
+  });
+});
+
+describe("admin review fixes", () => {
+  it("allowlist on every request: a session whose email left ALLOWED_EMAILS gets 401", async () => {
+    process.env.ALLOWED_EMAILS = "beatrizbisol@gmail.com";
+    session.current = { user: { email: "filipemlins@gmail.com" } };
+    for (const [name, run] of operations) {
+      expect((await run()).status, name).toBe(401);
+    }
+    delete process.env.ALLOWED_EMAILS;
+  });
+
+  it("logs unexpected errors before answering 500", async () => {
+    session.current = { user: { email: "filipemlins@gmail.com" } };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const blocker = path.join(tmp.dir, "not-a-dir");
+    await writeFile(blocker, "x");
+    process.env.DATA_DIR = blocker;
+    expect((await ordersRoute.GET()).status).toBe(500);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("invalid order transition answers 409", async () => {
+    session.current = { user: { email: "filipemlins@gmail.com" } };
+    const a = await createItem(item("A"));
+    const o = await createOrder(order(a.id));
+    await orderRoute.PATCH(json("PATCH", { status: "cancelled" }), params(o.id));
+    const res = await orderRoute.PATCH(json("PATCH", { status: "confirmed" }), params(o.id));
+    expect(res.status).toBe(409);
   });
 });
