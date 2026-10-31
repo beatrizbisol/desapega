@@ -60,6 +60,12 @@ sudo systemctl reload caddy
 
 Antes, confira que nada mais usa as portas 80 e 443 do IP público: `sudo ss -ltnp '( sport = :80 or sport = :443 )'`.
 
+O firewall da VPS só libera SSH (setup do harmonica-analytics). Abra HTTP/HTTPS para o Caddy:
+
+```bash
+sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
+```
+
 ## 7. Admin pela tailnet
 
 ```bash
@@ -76,7 +82,7 @@ sudo cp deploy/backup.sh /usr/local/bin/desapega-backup
 echo '0 * * * * root /usr/local/bin/desapega-backup' | sudo tee /etc/cron.d/desapega-backup
 ```
 
-Guarda 7 dias em `/var/backups/desapega`. Para copiar também para fora da VPS, configure um remote do `rclone` (por exemplo R2) e adicione `BACKUP_REMOTE=r2:desapega-backups` na linha do cron.
+Guarda 7 dias em `/var/backups/desapega`. A VPS já tem o remote `r2:` do rclone (usado pelo backup do harmonica-analytics); para copiar também para fora da VPS, use `0 * * * * root BACKUP_REMOTE=r2:backup/desapega /usr/local/bin/desapega-backup` no cron.
 
 Restaurar: `docker compose -f docker-compose.prod.yml stop`, extraia o `.tar.gz` em `/var/lib/desapega` e suba de novo.
 
