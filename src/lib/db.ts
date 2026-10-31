@@ -1,5 +1,4 @@
-import { existsSync, promises as fs } from "fs";
-import path from "path";
+import { promises as fs } from "fs";
 import { Pool, type PoolClient } from "pg";
 
 type Holder = typeof globalThis & {
@@ -42,8 +41,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS orders_one_pending_per_phone
 async function seedItems(pool: Pool) {
   const seedPath = process.env.SEED_ITEMS_PATH?.trim();
   if (!seedPath) return;
-  // why: the catalog grows by new rows in the seed file after the first boot.
-  // ON CONFLICT DO NOTHING leaves a reservation or an edited price in place.
+  const { rows } = await pool.query("SELECT count(*)::int AS n FROM items");
+  if (rows[0].n > 0) return;
   const items = JSON.parse(await fs.readFile(seedPath, "utf8")) as Array<{
     id: string;
     title: string;
@@ -54,17 +53,10 @@ async function seedItems(pool: Pool) {
     createdAt: string;
     updatedAt: string;
   }>;
-  // why: the original seed lists photos as site paths (/items/...); once they live
-  // in R2 they are served from MEDIA_BASE_URL. A file that ships in public/
-  // stays a site path, so the listing does not point at an object that is not in the bucket.
+  // why: the seed lists photos as site paths (/items/...); once they live in R2
+  // they are served from MEDIA_BASE_URL instead.
   const base = process.env.MEDIA_BASE_URL?.trim().replace(/\/+$/, "");
-  const publicDir = path.resolve(process.cwd(), "public");
-  const photoUrl = (photo: string) => {
-    if (!base || !photo.startsWith("/")) return photo;
-    const local = path.resolve(path.join(publicDir, photo));
-    if (local.startsWith(`${publicDir}${path.sep}`) && existsSync(local)) return photo;
-    return `${base}${photo}`;
-  };
+  const photoUrl = (photo: string) => (base && photo.startsWith("/") ? `${base}${photo}` : photo);
   for (const item of items) {
     item.photos = item.photos.map(photoUrl);
     await pool.query(
