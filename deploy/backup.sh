@@ -11,11 +11,12 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$DEST"
 # why: copying the live Postgres directory can capture a torn state; pg_dump is
 # a consistent snapshot, so the tarball holds the dump and skips the raw files.
-docker compose -f /opt/desapega/docker-compose.prod.yml exec -T db \
+docker compose --env-file /opt/desapega/.env.production -f /opt/desapega/docker-compose.prod.yml exec -T db \
 	pg_dump -U desapega desapega >"$SRC/desapega.sql"
 tar -czf "$DEST/desapega-$STAMP.tar.gz" -C "$SRC" --exclude=./postgres .
 find "$DEST" -name 'desapega-*.tar.gz' -mtime +7 -delete
 
 if [[ -n "${BACKUP_REMOTE:-}" ]]; then
-	rclone copy "$DEST/desapega-$STAMP.tar.gz" "$BACKUP_REMOTE"
+	# shellcheck disable=SC2086 # RCLONE_FLAGS holds several flags, e.g. --bind <ipv4>
+	rclone ${RCLONE_FLAGS:-} copy "$DEST/desapega-$STAMP.tar.gz" "$BACKUP_REMOTE"
 fi
