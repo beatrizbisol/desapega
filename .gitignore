@@ -34,9 +34,6 @@ yarn-error.log*
 .env*
 !.env.example
 
-# uploaded item photos (keep folder)
-/public/uploads/*
-!/public/uploads/.gitkeep
 
 # vercel
 .vercel
@@ -44,3 +41,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# runtime data written by the app
+/data/uploads/
+/data/*.tmp

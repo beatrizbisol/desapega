@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,13 +26,17 @@ import {
 import { formatPhoneInput } from "@/lib/phone";
 import type { Item, ItemStatus, Order } from "@/lib/types";
 
-const SECRET_KEY = "bf-admin-secret";
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
-export function AdminPanel() {
-  const [secret, setSecret] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
-  const [items, setItems] = useState<Item[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+export function AdminPanel({
+  initialItems,
+  initialOrders,
+}: {
+  initialItems: Item[];
+  initialOrders: Order[];
+}) {
+  const [items, setItems] = useState<Item[]>(initialItems);
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
@@ -42,43 +46,17 @@ export function AdminPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const headers = useMemo(
-    () => ({
-      "Content-Type": "application/json",
-      "x-admin-secret": secret,
-    }),
-    [secret],
-  );
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(SECRET_KEY);
-    if (stored) setSecret(stored);
-  }, []);
-
-  async function loadData(activeSecret = secret) {
-    const authHeaders = { "x-admin-secret": activeSecret };
+  async function loadData() {
     const [itemsRes, ordersRes] = await Promise.all([
       fetch("/api/items"),
-      fetch("/api/orders", { headers: authHeaders }),
+      fetch("/api/admin/orders"),
     ]);
     if (!ordersRes.ok) {
-      throw new Error("Senha incorreta.");
+      setError("Sessão expirada. Entre de novo.");
+      return;
     }
     setItems(await itemsRes.json());
     setOrders(await ordersRes.json());
-  }
-
-  async function unlock(event: React.FormEvent) {
-    event.preventDefault();
-    setError(null);
-    try {
-      await loadData(secret);
-      window.localStorage.setItem(SECRET_KEY, secret);
-      setUnlocked(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao entrar.");
-      setUnlocked(false);
-    }
   }
 
   async function onUpload(files: FileList | null) {
@@ -90,9 +68,8 @@ export function AdminPanel() {
       for (const file of Array.from(files)) {
         const body = new FormData();
         body.append("file", file);
-        const response = await fetch("/api/upload", {
+        const response = await fetch("/api/admin/upload", {
           method: "POST",
-          headers: { "x-admin-secret": secret },
           body,
         });
         const data = await response.json();
@@ -113,9 +90,9 @@ export function AdminPanel() {
     setError(null);
     setMessage(null);
     try {
-      const response = await fetch("/api/items", {
+      const response = await fetch("/api/admin/items", {
         method: "POST",
-        headers,
+        headers: JSON_HEADERS,
         body: JSON.stringify({
           title,
           description,
@@ -140,9 +117,9 @@ export function AdminPanel() {
 
   async function updateStatus(id: string, status: ItemStatus) {
     setError(null);
-    const response = await fetch(`/api/items/${id}`, {
+    const response = await fetch(`/api/admin/items/${id}`, {
       method: "PATCH",
-      headers,
+      headers: JSON_HEADERS,
       body: JSON.stringify({ status }),
     });
     if (!response.ok) {
@@ -155,10 +132,7 @@ export function AdminPanel() {
 
   async function removeItem(id: string) {
     if (!window.confirm("Excluir este item?")) return;
-    const response = await fetch(`/api/items/${id}`, {
-      method: "DELETE",
-      headers: { "x-admin-secret": secret },
-    });
+    const response = await fetch(`/api/admin/items/${id}`, { method: "DELETE" });
     if (!response.ok) {
       const data = await response.json();
       setError(data.error || "Não foi possível excluir.");
@@ -169,9 +143,9 @@ export function AdminPanel() {
 
   async function updateOrder(id: string, status: Order["status"]) {
     setError(null);
-    const response = await fetch(`/api/orders/${id}`, {
+    const response = await fetch(`/api/admin/orders/${id}`, {
       method: "PATCH",
-      headers,
+      headers: JSON_HEADERS,
       body: JSON.stringify({ status }),
     });
     if (!response.ok) {
@@ -180,38 +154,6 @@ export function AdminPanel() {
       return;
     }
     await loadData();
-  }
-
-  if (!unlocked) {
-    return (
-      <form
-        onSubmit={unlock}
-        className="mx-auto max-w-md space-y-4 rounded-xl border border-[var(--line)] bg-white p-6"
-      >
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--ocean-ink)]">
-            Cadastro de itens
-          </h1>
-          <p className="mt-2 text-sm text-[var(--ink-soft)]">
-            Área privada. Informe a senha de acesso.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="secret">Senha</Label>
-          <Input
-            id="secret"
-            type="password"
-            value={secret}
-            onChange={(event) => setSecret(event.target.value)}
-            required
-          />
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button type="submit" className="w-full">
-          Entrar
-        </Button>
-      </form>
-    );
   }
 
   return (

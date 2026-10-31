@@ -243,11 +243,3 @@ export const createOrder = (input: CreateOrderInput) =>
   serialized(() => createOrderUnlocked(input));
 export const updateOrderStatus = (...args: Parameters<typeof updateOrderStatusUnlocked>) =>
   serialized(() => updateOrderStatusUnlocked(...args));
-
-export function assertAdmin(request: Request) {
-  const expected = process.env.ADMIN_SECRET?.trim();
-  const header = request.headers.get("x-admin-secret");
-  if (!expected || header !== expected) {
-    throw new Error("UNAUTHORIZED");
-  }
-}

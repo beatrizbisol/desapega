@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { assertAdmin, updateOrderStatus } from "@/lib/store";
+import { adminError, requireAdmin } from "@/lib/admin-guard";
+import { updateOrderStatus } from "@/lib/store";
 import type { Order } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
-    assertAdmin(request);
+    await requireAdmin();
     const { id } = await params;
     const body = await request.json();
     const status = String(body.status ?? "") as Order["status"];
@@ -27,9 +28,6 @@ export async function PATCH(request: Request, { params }: Params) {
         { status: 409 },
       );
     }
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-    }
-    return NextResponse.json({ error: "Erro ao atualizar pedido." }, { status: 500 });
+    return adminError(error, "Erro ao atualizar pedido.");
   }
 }
