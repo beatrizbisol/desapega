@@ -28,6 +28,23 @@ import type { Item, ItemStatus, Order } from "@/lib/types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+// why: the list endpoints are paginated; the panel shows everything, so it
+// follows nextCursor until the last page.
+async function fetchAll<T>(url: string, key: "items" | "orders"): Promise<T[] | null> {
+  const all: T[] = [];
+  let cursor: string | null = null;
+  do {
+    const response: Response = await fetch(
+      `${url}?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+    );
+    if (!response.ok) return null;
+    const body = (await response.json()) as Record<string, T[]> & { nextCursor: string | null };
+    all.push(...body[key]);
+    cursor = body.nextCursor;
+  } while (cursor);
+  return all;
+}
+
 export function AdminPanel({
   initialItems,
   initialOrders,
@@ -47,16 +64,16 @@ export function AdminPanel({
   const [error, setError] = useState<string | null>(null);
 
   async function loadData() {
-    const [itemsRes, ordersRes] = await Promise.all([
-      fetch("/api/items"),
-      fetch("/api/admin/orders"),
+    const [allItems, allOrders] = await Promise.all([
+      fetchAll<Item>("/api/items", "items"),
+      fetchAll<Order>("/api/admin/orders", "orders"),
     ]);
-    if (!ordersRes.ok) {
+    if (!allItems || !allOrders) {
       setError("Sessão expirada. Entre de novo.");
       return;
     }
-    setItems(await itemsRes.json());
-    setOrders(await ordersRes.json());
+    setItems(allItems);
+    setOrders(allOrders);
   }
 
   async function onUpload(files: FileList | null) {

@@ -1,11 +1,11 @@
-import { readFile } from "fs/promises";
-import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as fsModule from "fs";
+import { query } from "@/lib/db";
 import {
   RESERVATION_MS,
   createItem,
   createOrder,
+  getItem,
+  listItems,
   listOrders,
   updateOrderStatus,
 } from "@/lib/store";
@@ -24,22 +24,11 @@ afterEach(async () => {
 });
 
 describe("store", () => {
-  it("DATA_DIR and write queue: 20 concurrent createItem land in DATA_DIR/items.json", async () => {
+  it("postgres crud: 20 concurrent createItem are all stored in the database", async () => {
     await Promise.all(Array.from({ length: 20 }, (_, i) => createItem(item(`Item ${i}`))));
-    const saved = JSON.parse(await readFile(path.join(tmp.dir, "items.json"), "utf8"));
-    expect(saved).toHaveLength(20);
-  });
-
-  it("atomic write: a failed rename leaves the previous items.json complete", async () => {
-    await createItem(item("Primeiro"));
-    const before = await readFile(path.join(tmp.dir, "items.json"), "utf8");
-
-    vi.spyOn(fsModule.promises, "rename").mockRejectedValueOnce(new Error("disk gone"));
-    await expect(createItem(item("Segundo"))).rejects.toThrow("disk gone");
-
-    const after = await readFile(path.join(tmp.dir, "items.json"), "utf8");
-    expect(after).toBe(before);
-    expect(JSON.parse(after)).toHaveLength(1);
+    const rows = await query<{ n: number }>("SELECT count(*)::int AS n FROM items");
+    expect(rows[0].n).toBe(20);
+    expect(await listItems()).toHaveLength(20);
   });
 
   it("concurrent reservation: exactly one of two orders for the same item succeeds", async () => {
@@ -83,44 +72,34 @@ describe("store", () => {
 
 
 describe("store hardening", () => {
-  it("shared queue: two module instances still serialize writes", async () => {
+  it("shared database: two module instances still allow one reservation per item", async () => {
+    const created = await createItem(item());
     vi.resetModules();
     const first = await import("@/lib/store");
     vi.resetModules();
     const second = await import("@/lib/store");
     expect(first).not.toBe(second);
 
-    await Promise.all(
-      Array.from({ length: 20 }, (_, i) =>
-        (i % 2 ? first : second).createItem(item(`Item ${i}`)),
-      ),
-    );
-    const saved = JSON.parse(await readFile(path.join(tmp.dir, "items.json"), "utf8"));
-    expect(saved).toHaveLength(20);
+    const results = await Promise.allSettled([
+      first.createOrder(order(created.id, "51911111111")),
+      second.createOrder(order(created.id, "51922222222")),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
   });
 
-  it("order rollback: a failed item write leaves no pending order and the item available", async () => {
-    const created = await createItem(item());
-    const realRename = fsModule.promises.rename;
-    let calls = 0;
-    vi.spyOn(fsModule.promises, "rename").mockImplementation(async (from, to) => {
-      calls += 1;
-      if (calls === 2) throw new Error("disk gone");
-      return realRename(from, to);
-    });
-
-    await expect(createOrder(order(created.id))).rejects.toThrow("disk gone");
-    vi.restoreAllMocks();
-
+  it("order rollback: a failed item update leaves no pending order and the item available", async () => {
+    const created = await createItem(item("Boom"));
+    await query(`CREATE OR REPLACE FUNCTION fail_reserve() RETURNS trigger AS $$
+      BEGIN IF NEW.status = 'reserved' THEN RAISE EXCEPTION 'disk gone'; END IF; RETURN NEW; END
+      $$ LANGUAGE plpgsql`);
+    await query("CREATE TRIGGER fail_reserve BEFORE UPDATE ON items FOR EACH ROW EXECUTE FUNCTION fail_reserve()");
+    try {
+      await expect(createOrder(order(created.id))).rejects.toThrow("disk gone");
+    } finally {
+      await query("DROP TRIGGER fail_reserve ON items");
+    }
     expect(await listOrders()).toHaveLength(0);
-    const saved = JSON.parse(await readFile(path.join(tmp.dir, "items.json"), "utf8"));
-    expect(saved[0].status).toBe("available");
-  });
-
-  it("durable write: json is written with flush", async () => {
-    const spy = vi.spyOn(fsModule.promises, "writeFile");
-    await createItem(item());
-    expect(spy.mock.calls.some(([, , options]) => (options as { flush?: boolean })?.flush === true)).toBe(true);
+    expect((await getItem(created.id))?.status).toBe("available");
   });
 
   it("order transitions: only a pending order can be confirmed", async () => {
@@ -130,7 +109,6 @@ describe("store hardening", () => {
     await createOrder(order(a.id, "51922222222"));
 
     await expect(updateOrderStatus(first.id, "confirmed")).rejects.toThrow("INVALID_TRANSITION");
-    const saved = JSON.parse(await readFile(path.join(tmp.dir, "items.json"), "utf8"));
-    expect(saved[0].status).toBe("reserved");
+    expect((await getItem(a.id))?.status).toBe("reserved");
   });
 });

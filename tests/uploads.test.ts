@@ -52,3 +52,39 @@ describe("uploads", () => {
     expect(missing.status).toBe(404);
   });
 });
+
+describe("uploads to R2", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    for (const key of ["R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "MEDIA_BASE_URL"]) {
+      delete process.env[key];
+    }
+  });
+
+  it("r2 upload: with R2 configured the photo is PUT to the bucket and the media URL is returned", async () => {
+    Object.assign(process.env, {
+      R2_ACCOUNT_ID: "acc123",
+      R2_BUCKET: "desapega",
+      R2_ACCESS_KEY_ID: "key",
+      R2_SECRET_ACCESS_KEY: "secret",
+      MEDIA_BASE_URL: "https://media.useclubapp.com/",
+    });
+    const calls: Request[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: Request) => {
+      calls.push(input);
+      return new Response(null, { status: 200 });
+    }));
+
+    const form = new FormData();
+    form.set("file", new File([PNG], "foto.png", { type: "image/png" }));
+    const res = await upload(new Request("http://admin.test/api/admin/upload", { method: "POST", body: form }));
+
+    expect(res.status).toBe(201);
+    const { url } = await res.json();
+    expect(url).toMatch(/^https:\/\/media\.useclubapp\.com\/uploads\/[0-9]+-[0-9a-f]{8}\.png$/);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("PUT");
+    expect(calls[0].url).toBe(`https://acc123.r2.cloudflarestorage.com/desapega/${url.replace("https://media.useclubapp.com/", "")}`);
+    expect(calls[0].headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 /);
+  });
+});

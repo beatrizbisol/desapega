@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GET as getItemRoute } from "@/app/api/items/[id]/route";
 import { POST } from "@/app/api/orders/route";
 import { createItem } from "@/lib/store";
-import { item, order, useTempDataDir } from "./helpers";
+import { BROKEN_DATABASE_URL, item, order, useTempDataDir } from "./helpers";
 
 let tmp: Awaited<ReturnType<typeof useTempDataDir>>;
 let ipCounter = 0;
@@ -82,7 +82,7 @@ describe("POST /api/orders", () => {
 
     const blocker = path.join(tmp.dir, "not-a-dir");
     await writeFile(blocker, "x");
-    process.env.DATA_DIR = blocker;
+    process.env.DATABASE_URL = BROKEN_DATABASE_URL;
     expect((await postOrder(order(created.id, "51933334444"), freshIp())).status).toBe(500);
   });
 });

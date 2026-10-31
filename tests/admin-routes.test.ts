@@ -2,7 +2,7 @@ import { writeFile } from "fs/promises";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createItem, createOrder } from "@/lib/store";
-import { item, order, useTempDataDir } from "./helpers";
+import { BROKEN_DATABASE_URL, item, order, useTempDataDir } from "./helpers";
 
 const session = vi.hoisted(() => ({ current: null as null | { user: { email: string } } }));
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => session.current) }));
@@ -42,7 +42,7 @@ const operations: Array<[string, () => Promise<Response>]> = [
   ["POST items", () => itemsRoute.POST(json("POST", item()))],
   ["PATCH item", () => itemRoute.PATCH(json("PATCH", { price: 50 }), params("x"))],
   ["DELETE item", () => itemRoute.DELETE(json("DELETE"), params("x"))],
-  ["GET orders", () => ordersRoute.GET()],
+  ["GET orders", () => ordersRoute.GET(new Request("http://admin.test/api/admin/orders"))],
   ["PATCH order", () => orderRoute.PATCH(json("PATCH", { status: "confirmed" }), params("x"))],
   ["POST upload", () => uploadRoute.POST(pngForm())],
 ];
@@ -60,9 +60,9 @@ describe("admin routes", () => {
     session.current = { user: { email: "filipemlins@gmail.com" } };
     const created = await itemsRoute.POST(json("POST", item()));
     expect(created.status).toBe(201);
-    const listed = await ordersRoute.GET();
+    const listed = await ordersRoute.GET(new Request("http://admin.test/api/admin/orders"));
     expect(listed.status).toBe(200);
-    expect(Array.isArray(await listed.json())).toBe(true);
+    expect(Array.isArray((await listed.json()).orders)).toBe(true);
   });
 
   it("admin contract: 200, 400, 404 and 500 per operation", async () => {
@@ -90,7 +90,7 @@ describe("admin routes", () => {
 
     const blocker = path.join(tmp.dir, "not-a-dir");
     await writeFile(blocker, "x");
-    process.env.DATA_DIR = blocker;
+    process.env.DATABASE_URL = BROKEN_DATABASE_URL;
     process.env.UPLOADS_DIR = path.join(blocker, "uploads");
     for (const [name, run] of operations) {
       expect((await run()).status, name).toBe(500);
@@ -113,8 +113,8 @@ describe("admin review fixes", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const blocker = path.join(tmp.dir, "not-a-dir");
     await writeFile(blocker, "x");
-    process.env.DATA_DIR = blocker;
-    expect((await ordersRoute.GET()).status).toBe(500);
+    process.env.DATABASE_URL = BROKEN_DATABASE_URL;
+    expect((await ordersRoute.GET(new Request("http://admin.test/api/admin/orders"))).status).toBe(500);
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });

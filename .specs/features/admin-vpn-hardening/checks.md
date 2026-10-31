@@ -3,7 +3,7 @@
 Profile: light
 Plan: `.specs/features/admin-vpn-hardening/plan.md`
 
-31 checks in 4 slices · 5 one-way doors · 1 open, of which 0 block (1 blocks go-live)
+36 checks in 4 slices · 5 one-way doors · 1 open, of which 0 block (1 blocks go-live)
 
 ## Checks
 
@@ -117,6 +117,26 @@ Proof: `npx vitest run tests/rate-limit.test.ts -t "CLIENT_IP_HEADER"`
 
 **C31** - Em produção, `GET https://desapega.useclubapp.com/api/items` → 200 e `/admin`, `/api/admin/orders`, `/api/auth/providers` → 403 ou 404 (AC 24)
 Proof: `node scripts/check-public.mjs https://desapega.useclubapp.com`
+
+### Postgres, R2 e paginação (doors 7–9)
+
+C13, C14, C20, C21 e C23 provavam o store em JSON (fila, gravação atômica, flush); com o door 7 foram substituídos por C32–C34.
+
+**C32** - 20 `createItem` concorrentes ficam todos na tabela `items`; duas instâncias do módulo ainda aceitam só uma reserva por item (door 7)
+Proof: `npx vitest run tests/store.test.ts -t "postgres crud"`
+Proof: `npx vitest run tests/store.test.ts -t "shared database"`
+
+**C33** - Se a atualização do item falha dentro da reserva, a transação desfaz o pedido e o item fica `available` (door 7)
+Proof: `npx vitest run tests/store.test.ts -t "order rollback"`
+
+**C34** - Banco vazio é preenchido de `SEED_ITEMS_PATH`, preservando o id slug e prefixando fotos `/…` com `MEDIA_BASE_URL` (door 7, door 8)
+Proof: `npx vitest run tests/seed.test.ts -t "seed"`
+
+**C35** - Com `R2_*` e `MEDIA_BASE_URL`, o upload faz um `PUT` assinado (AWS4) em `https://<conta>.r2.cloudflarestorage.com/<bucket>/uploads/<arquivo>` e devolve a URL de mídia (door 8)
+Proof: `npx vitest run tests/uploads.test.ts -t "r2 upload"`
+
+**C36** - `limit` + `nextCursor` percorrem todos os itens uma vez, do mais novo ao mais antigo; padrão 20; `status` filtra; `limit` 0/101/abc, `status` desconhecido e cursor inválido → 400; pedidos do admin paginam igual (door 9)
+Proof: `npx vitest run tests/pagination.test.ts`
 
 ## Coverage
 
