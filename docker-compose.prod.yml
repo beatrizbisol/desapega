@@ -1,0 +1,14 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATA_DIR: /data
+      UPLOADS_DIR: /data/uploads
+    ports:
+      # invariant: bound to loopback only; the internet reaches it through Caddy
+      # and the admin through `tailscale serve`, never directly.
+      - "127.0.0.1:43127:43127"
+    volumes:
+      - /var/lib/desapega:/data

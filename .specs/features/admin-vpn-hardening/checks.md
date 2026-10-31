@@ -33,7 +33,7 @@ Proof: `npm run build && node scripts/smoke.mjs routes`
 **C17** - Com sessão, cada operação de admin cobre seu contrato: `POST /api/admin/items` 400 sem título; `PATCH /api/admin/items/<id>` 200 e 400 com `price: -1`; `DELETE /api/admin/items/<id>` 200; `PATCH /api/admin/orders/<id>` 200 e 400 com `status: "x"`; `POST /api/admin/upload` 400 com `text/plain`; cada rota com `[id]` responde 404 para id inexistente; cada uma das 6 responde 500 quando o store lança erro inesperado (ADM-01, AC 7)
 Proof: `npx vitest run tests/admin-routes.test.ts -t "admin contract"`
 
-**C18** - Auth.js montado: com `ADMIN_HOST`, `GET /api/auth/providers` → 200 listando `google`, e `GET /api/auth/signin/google` → 302 para `accounts.google.com` ou para `/admin/login` (ADM-01, AC 5)
+**C18** - Auth.js montado: com `ADMIN_HOST`, `GET /api/auth/providers` → 200 listando `google`, e `POST /api/auth/signin/google` (com CSRF) → 302 para `accounts.google.com` (ADM-01, AC 5)
 Proof: `npm run build && node scripts/smoke.mjs auth`
 
 **C8** - Nenhum arquivo em `src/` contém `ADMIN_SECRET` nem `x-admin-secret` (ADM-01, AC 9)
@@ -70,8 +70,8 @@ Proof: `npx vitest run tests/uploads.test.ts -t "upload and serve"`
 
 ### S4 - Pronto para a VPS · ~5 files · ~8 KB · ~2k
 
-**C16** - `docker compose -f docker-compose.prod.yml config` sai 0 e publica `127.0.0.1:43127`; `caddy validate` aceita o `deploy/Caddyfile`; `docs/DEPLOY.md` cita as 8 variáveis, `tailscale serve` e o cron de backup (OPS-01, AC 20, AC 21, AC 22)
-Proof: `docker compose -f docker-compose.prod.yml config | grep -q "127.0.0.1"`
+**C16** - `docker compose -f docker-compose.prod.yml config` sai 0 e publica `127.0.0.1:43127`; `caddy validate` aceita o `deploy/Caddyfile`; `docs/DEPLOY.md` cita as 8 variáveis, `tailscale serve` e o cron de backup com agendamento `0 * * * *` (OPS-01, AC 20, AC 21, AC 22)
+Proof: `touch .env.production && docker compose -f docker-compose.prod.yml config | grep -A4 "host_ip: 127.0.0.1" | grep -q "published: \"43127\""`
 Proof: `docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile`
 Proof: `node scripts/check-deploy-doc.mjs`
 
