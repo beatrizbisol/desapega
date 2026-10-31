@@ -24,7 +24,7 @@ export default async function ItemPage({ params }: Props) {
       <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
         <Link
           href="/#itens"
-          className="text-sm font-medium text-[var(--ocean)] transition hover:text-[var(--ocean-ink)]"
+          className="-my-3 inline-flex min-h-11 items-center text-sm font-medium text-[var(--ocean)] transition hover:text-[var(--ocean-ink)]"
         >
           ← Voltar aos itens
         </Link>
