@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { useRouter } from "next/navigation";
 import { CreditCard, QrCode, Truck, MapPin, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,11 @@ export function BuyDialog({
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
-    if (!next) reset();
+    if (next) return;
+    // why: refreshing while the confirmation is open re-renders the item as
+    // reserved, which unmounts this dialog before the buyer can read it.
+    if (done) router.refresh();
+    reset();
   }
 
   async function submitOrder(event: FormEvent) {
@@ -93,7 +98,6 @@ export function BuyDialog({
         throw new Error(data.error || "Não foi possível reservar.");
       }
       setDone(true);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado.");
     } finally {
@@ -127,6 +131,10 @@ export function BuyDialog({
                   a ficar disponível.
                 </DialogDescription>
               </DialogHeader>
+              <WhatsAppButton
+                label="Avisar a Beatriz no WhatsApp"
+                message={`Oi, Beatriz! Acabei de reservar "${title}" (${formatBRL(price)}) no desapega. Meu nome é ${buyerName.trim()}.`}
+              />
               <Button
                 type="button"
                 className="w-full"

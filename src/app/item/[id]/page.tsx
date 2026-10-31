@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { notFound } from "next/navigation";
 import { BuyDialog } from "@/components/buy-dialog";
 import { PhotoCarousel } from "@/components/photo-carousel";
@@ -61,6 +62,12 @@ export default async function ItemPage({ params }: Props) {
                   quiser, fala com a gente — às vezes surge outra opção.
                 </p>
               )}
+              <div className="mt-4">
+                <WhatsAppButton
+                  label="Falar com a Beatriz no WhatsApp"
+                  message={`Oi, Beatriz! Vi o anúncio "${item.title}" no desapega e queria saber mais.`}
+                />
+              </div>
             </div>
           </div>
         </div>
