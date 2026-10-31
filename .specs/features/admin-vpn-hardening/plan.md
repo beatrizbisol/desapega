@@ -36,7 +36,7 @@ Quando isso entrar: o público só vê a vitrine e consegue reservar; o painel s
 | Armazenamento do rate limit | memória do processo (janela fixa) | um processo só; reiniciar zera o contador, aceitável | n |
 | Diretório de dados | `DATA_DIR` (padrão `./data`); uploads em `UPLOADS_DIR` (padrão `<DATA_DIR>/uploads`) | no servidor apontam para `/var/lib/desapega` fora do repositório | n |
 | URL das fotos enviadas | continua `/uploads/<arquivo>`, agora servida por rota que lê `UPLOADS_DIR` | não muda o formato salvo em `items.json` | n |
-| Fotos semente | `public/items/**` continuam no repositório e servidas pelo Next | são parte do catálogo inicial versionado | n |
+| Fotos semente | ficam só no bucket R2 `desapega`; `data/items.json` aponta para as URLs `r2.dev` | pedido do usuário: remover as fotos de `public/items` depois de enviadas ao R2 | y |
 | Runner de teste | Vitest | o repo não tem testes; Vitest roda TypeScript e o alias `@/` sem build | n |
 | Domínio público | `desapega.useclubapp.com` (zona `useclubapp.com` na Cloudflare da Beatriz), registro A para a VPS | domínio informado pelo usuário; subdomínio não mexe no que já existe na raiz | n |
 | Proxy da Cloudflare | registro em modo "DNS only" (nuvem cinza); Caddy emite o certificado Let's Encrypt | com a nuvem laranja o Caddy veria o IP da Cloudflare e o rate limit por IP bloquearia todos juntos | n |
