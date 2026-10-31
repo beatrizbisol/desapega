@@ -29,7 +29,7 @@ Guarde o client ID e o secret para o passo 4.
 
 ## 3. Dados
 
-Itens e pedidos ficam no Postgres do compose (`/var/lib/desapega/postgres`). Na primeira subida, com a tabela `items` vazia, o app importa `data/items.json` (copiado na imagem como `/app/seed/items.json`); as fotos desses itens já apontam para o R2.
+Itens e pedidos ficam no Postgres do compose (`/var/lib/desapega/postgres`). Em cada subida o app importa de `data/items.json` (copiado na imagem como `/app/seed/items.json`) os itens cujo id ainda não existe; preço, fotos e status já gravados não são reescritos. As fotos da semente original apontam para o R2. Um caminho `/items/...` que existe em `public/items` continua sendo servido pelo próprio site.
 
 ```bash
 sudo mkdir -p /var/lib/desapega/uploads /var/lib/desapega/postgres
