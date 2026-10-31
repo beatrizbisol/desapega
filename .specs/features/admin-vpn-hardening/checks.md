@@ -3,7 +3,7 @@
 Profile: light
 Plan: `.specs/features/admin-vpn-hardening/plan.md`
 
-19 checks in 4 slices · 5 one-way doors · 1 open, of which 0 block (1 blocks go-live)
+24 checks in 4 slices · 5 one-way doors · 1 open, of which 0 block (1 blocks go-live)
 
 ## Checks
 
@@ -75,6 +75,23 @@ Proof: `docker compose -f docker-compose.prod.yml config | grep -q "127.0.0.1"`
 Proof: `docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile`
 Proof: `node scripts/check-deploy-doc.mjs`
 
+### Review fixes (PR #1 findings A1, A2, A3, N1, P1)
+
+**C20** - Duas instâncias do módulo do store (como o build de produção carrega para rotas e páginas) compartilham a fila: 20 `createItem` alternados entre elas deixam 20 itens (A1)
+Proof: `npx vitest run tests/store.test.ts -t "shared queue"`
+
+**C21** - Se a gravação do item falha depois do pedido salvo, `orders.json` volta sem o pedido e o item continua `available` (A2)
+Proof: `npx vitest run tests/store.test.ts -t "order rollback"`
+
+**C22** - Endereços IPv6 no mesmo /64 caem no mesmo contador; outro /64 não; IPv4 inalterado; janelas vencidas são removidas (A3)
+Proof: `npx vitest run tests/rate-limit.test.ts`
+
+**C23** - O JSON é gravado com `flush: true` (N1)
+Proof: `npx vitest run tests/store.test.ts -t "durable write"`
+
+**C24** - Confirmar um pedido que não está `pending` lança `INVALID_TRANSITION` (rota → 409) e não mexe no item (P1)
+Proof: `npx vitest run tests/store.test.ts -t "order transitions"`
+
 ## Coverage
 
 | Set (size) | Member -> proof | Unproven |
@@ -93,6 +110,7 @@ Proof: `node scripts/check-deploy-doc.mjs`
 | `DELETE /api/admin/items/[id]` statuses (4) | 200 C17 · 401 C4 · 404 C17 · 500 C17 | - |
 | `GET /api/admin/orders` statuses (4) | 200 C6 · 401 C4 · 404 C1 · 500 C17 | - |
 | `PATCH /api/admin/orders/[id]` statuses (5) | 200 C17 · 400 C17 · 401 C4 · 404 C17 · 500 C17 | - |
+| `PATCH /api/admin/orders/[id]` transição inválida (1) | 409 C24 | - |
 | `POST /api/admin/upload` statuses (5) | 201 C15 · 400 C17 · 401 C4 · 404 C1 · 500 C17 | - |
 | `GET /uploads/[file]` statuses (2) | 200 C15 · 404 C15 | - |
 | `GET,POST /api/auth/*` statuses (3) | 200 C18 · 302 C18 · 404 C1 | - |
