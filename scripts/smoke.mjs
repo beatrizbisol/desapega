@@ -1,8 +1,11 @@
 // Smoke test against a real `next start` build: proxy matcher, 405s, Auth.js sign-in and the admin page body.
 // Usage: npm run build && node scripts/smoke.mjs [routes|auth]
+//        npm run build && node --env-file=.env.production scripts/smoke.mjs upload   (needs R2_* and MEDIA_BASE_URL)
 import { execFileSync, spawn } from "node:child_process";
 import pg from "pg";
-import { mkdtemp, rm } from "node:fs/promises";
+import { AwsClient } from "aws4fetch";
+import { encode } from "next-auth/jwt";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -100,6 +103,40 @@ try {
     const admin = await request("GET", "/admin", ADMIN_HOST);
     expect("GET /admin admin host no cookie -> 307 /admin/login", [admin.status, admin.headers.location], ([s, l]) => s === 307 && /\/admin\/login$/.test(l ?? ""));
     expect("GET /admin redirect body carries no order data", admin.body.includes(SENTINEL_PHONE), (leaked) => leaked === false);
+  } else if (mode === "upload") {
+    // why: the 411 from R2 only happens under the Next server's fetch, so this
+    // drives the real route with a signed admin session instead of a mock.
+    const secret = "smoke-secret-smoke-secret-smoke-secret";
+    const salt = "authjs.session-token";
+    const token = await encode({ token: { email: "filipemlins@gmail.com", sub: "smoke" }, secret, salt });
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4d60000000049454e44ae426082", "hex");
+    const form = new FormData();
+    // why: a phone photo of several MB is what failed in production; SMOKE_UPLOAD_FILE
+    // lets the check use one, the tiny PNG keeps the default run fast.
+    const photo = process.env.SMOKE_UPLOAD_FILE;
+    form.set(
+      "file",
+      photo
+        ? new File([await readFile(photo)], "photo.jpg", { type: "image/jpeg" })
+        : new File([png], "smoke.png", { type: "image/png" }),
+    );
+    const multipart = new Response(form);
+    const res = await request(
+      "POST",
+      "/api/admin/upload",
+      ADMIN_HOST,
+      { cookie: `${salt}=${token}`, "content-type": multipart.headers.get("content-type") },
+      Buffer.from(await multipart.arrayBuffer()),
+    );
+    const url = res.status === 201 ? JSON.parse(res.body).url : null;
+    expect("POST /api/admin/upload 201 with media url", [res.status, url], ([s, u]) => s === 201 && u?.startsWith(process.env.MEDIA_BASE_URL));
+    if (url) {
+      const served = await fetch(url);
+      expect("uploaded photo readable at media url", served.status, (s) => s === 200);
+      const r2 = new AwsClient({ accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY, service: "s3", region: "auto" });
+      const key = url.slice(process.env.MEDIA_BASE_URL.length + 1);
+      await r2.fetch(`https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET}/${key}`, { method: "DELETE" });
+    }
   } else {
     const providers = await request("GET", "/api/auth/providers", ADMIN_HOST);
     expect("GET /api/auth/providers 200 with google", [providers.status, providers.body.includes('"google"')], ([s, g]) => s === 200 && g);

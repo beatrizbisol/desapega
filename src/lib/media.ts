@@ -31,17 +31,27 @@ export async function putMedia(key: string, body: Uint8Array, contentType: strin
     service: "s3",
     region: "auto",
   });
-  const response = await client.fetch(
+  const bytes = new Uint8Array(body);
+  const signed = await client.sign(
     `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucket}/${key}`,
     {
       method: "PUT",
-      body: new Uint8Array(body),
+      body: bytes,
       headers: {
         "Content-Type": contentType,
         "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Length": String(bytes.byteLength),
       },
     },
   );
+  // hazard: sending the signed Request object streams its body without a length
+  // inside the Next server, and R2 rejects multi-MB photos with 411 Length
+  // Required; passing the bytes directly keeps Content-Length on the request.
+  const response = await fetch(signed.url, {
+    method: "PUT",
+    headers: signed.headers,
+    body: bytes,
+  });
   if (!response.ok) throw new Error(`R2 upload failed: ${response.status}`);
   return `${base}/${key}`;
 }

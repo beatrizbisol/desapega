@@ -69,9 +69,9 @@ describe("uploads to R2", () => {
       R2_SECRET_ACCESS_KEY: "secret",
       MEDIA_BASE_URL: "https://media.useclubapp.com/",
     });
-    const calls: Request[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (input: Request) => {
-      calls.push(input);
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url: String(url), init });
       return new Response(null, { status: 200 });
     }));
 
@@ -83,8 +83,11 @@ describe("uploads to R2", () => {
     const { url } = await res.json();
     expect(url).toMatch(/^https:\/\/media\.useclubapp\.com\/uploads\/[0-9]+-[0-9a-f]{8}\.png$/);
     expect(calls).toHaveLength(1);
-    expect(calls[0].method).toBe("PUT");
+    expect(calls[0].init.method).toBe("PUT");
     expect(calls[0].url).toBe(`https://acc123.r2.cloudflarestorage.com/desapega/${url.replace("https://media.useclubapp.com/", "")}`);
-    expect(calls[0].headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 /);
+    const headers = new Headers(calls[0].init.headers);
+    expect(headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 /);
+    expect(headers.get("content-length")).toBe(String(PNG.byteLength));
+    expect(calls[0].init.body).toBeInstanceOf(Uint8Array);
   });
 });

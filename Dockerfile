@@ -10,7 +10,9 @@ WORKDIR /app
 ENV NODE_ENV=production DATA_DIR=/data UPLOADS_DIR=/data/uploads
 COPY --from=build /app/package.json /app/next.config.ts ./
 COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/.next ./.next
+# why: next/image writes its cache under .next/cache; owned by root, the node
+# user cannot create it and every request re-optimizes and refetches from R2.
+COPY --from=build --chown=node:node /app/.next ./.next
 COPY --from=build /app/public ./public
 COPY --from=build /app/data/items.json ./seed/items.json
 USER node
