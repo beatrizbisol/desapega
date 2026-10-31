@@ -26,3 +26,23 @@ describe("rate limit", () => {
     expect(activeWindowCount()).toBe(1);
   });
 });
+
+describe("client ip source", () => {
+  afterEach(() => {
+    delete process.env.CLIENT_IP_HEADER;
+  });
+
+  it("CLIENT_IP_HEADER: reads the configured header and ignores a forged X-Forwarded-For", () => {
+    process.env.CLIENT_IP_HEADER = "cf-connecting-ip";
+    const request = new Request("http://site.test", {
+      headers: { "x-forwarded-for": "6.6.6.6, 198.51.100.4", "cf-connecting-ip": "198.51.100.4" },
+    });
+    expect(clientIp(request)).toBe("198.51.100.4");
+  });
+
+  it("CLIENT_IP_HEADER set but header missing: falls back to one shared bucket", () => {
+    process.env.CLIENT_IP_HEADER = "cf-connecting-ip";
+    const request = new Request("http://site.test", { headers: { "x-forwarded-for": "6.6.6.6" } });
+    expect(clientIp(request)).toBe("local");
+  });
+});

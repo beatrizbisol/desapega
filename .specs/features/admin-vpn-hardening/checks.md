@@ -3,7 +3,7 @@
 Profile: light
 Plan: `.specs/features/admin-vpn-hardening/plan.md`
 
-29 checks in 4 slices · 5 one-way doors · 1 open, of which 0 block (1 blocks go-live)
+31 checks in 4 slices · 5 one-way doors · 1 open, of which 0 block (1 blocks go-live)
 
 ## Checks
 
@@ -72,7 +72,7 @@ Proof: `npx vitest run tests/uploads.test.ts -t "upload and serve"`
 
 **C16** - `docker compose -f docker-compose.prod.yml config` sai 0 e publica `127.0.0.1:43127`; `caddy validate` aceita o `deploy/Caddyfile`; `docs/DEPLOY.md` cita as 8 variáveis, `tailscale serve` e o cron de backup com agendamento `0 * * * *` (OPS-01, AC 20, AC 21, AC 22)
 Proof: `touch .env.production && docker compose -f docker-compose.prod.yml config | grep -A4 "host_ip: 127.0.0.1" | grep -q "published: \"43127\""`
-Proof: `docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile`
+Proof: `docker compose -f docker-compose.prod.yml config | grep -q "cloudflare/cloudflared"` (door 6: o túnel substitui o Caddyfile de AC 21)
 Proof: `node scripts/check-deploy-doc.mjs`
 
 ### Review fixes (PR #1 findings A1, A2, A3, N1, P1)
@@ -109,6 +109,14 @@ Proof: `npm run build && node scripts/smoke.mjs auth`
 
 **C29** - `PATCH /api/admin/orders/<id>` confirmando um pedido cancelado responde 409 (P1 na rota)
 Proof: `npx vitest run tests/admin-routes.test.ts -t "invalid order transition"`
+
+### Cloudflare Tunnel (door 6)
+
+**C30** - Com `CLIENT_IP_HEADER=cf-connecting-ip`, o IP vem desse cabeçalho mesmo com um `X-Forwarded-For` forjado; sem o cabeçalho, cai no bucket `local` (AC 23)
+Proof: `npx vitest run tests/rate-limit.test.ts -t "CLIENT_IP_HEADER"`
+
+**C31** - Em produção, `GET https://desapega.useclubapp.com/api/items` → 200 e `/admin`, `/api/admin/orders`, `/api/auth/providers` → 403 ou 404 (AC 24)
+Proof: `node scripts/check-public.mjs https://desapega.useclubapp.com`
 
 ## Coverage
 
