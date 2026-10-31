@@ -3,7 +3,7 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GET as getItemRoute } from "@/app/api/items/[id]/route";
 import { POST } from "@/app/api/orders/route";
-import { createItem } from "@/lib/store";
+import { createItem, updateItem } from "@/lib/store";
 import { BROKEN_DATABASE_URL, item, order, useTempDataDir } from "./helpers";
 
 let tmp: Awaited<ReturnType<typeof useTempDataDir>>;
@@ -75,6 +75,11 @@ describe("POST /api/orders", () => {
     expect(okItem.status).toBe(200);
     const missingItem = await getItemRoute(new Request("http://site.test"), params("nope"));
     expect(missingItem.status).toBe(404);
+    const soldItem = await createItem(item("Vendido"));
+    await updateItem(soldItem.id, { status: "sold" });
+    const soldRes = await getItemRoute(new Request("http://site.test"), params(soldItem.id));
+    expect(soldRes.status).toBe(200);
+    expect(((await soldRes.json()) as { status: string }).status).toBe("sold");
 
     expect((await postOrder({ ...order(created.id), buyerName: "" }, freshIp())).status).toBe(400);
     expect((await postOrder(order("nope"), freshIp())).status).toBe(404);

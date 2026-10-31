@@ -7,6 +7,7 @@ import {
   getItem,
   listItems,
   listOrders,
+  updateItem,
   updateOrderStatus,
 } from "@/lib/store";
 import { item, order, useTempDataDir } from "./helpers";
@@ -29,6 +30,15 @@ describe("store", () => {
     const rows = await query<{ n: number }>("SELECT count(*)::int AS n FROM items");
     expect(rows[0].n).toBe(20);
     expect(await listItems()).toHaveLength(20);
+  });
+
+  it("hideSold: listItems drops sold items only when asked", async () => {
+    const kept = await createItem(item("Disponível"));
+    const sold = await createItem(item("Vendido"));
+    await updateItem(sold.id, { status: "sold" });
+
+    expect((await listItems({ hideSold: true })).map((entry) => entry.id)).toEqual([kept.id]);
+    expect(await listItems()).toHaveLength(2);
   });
 
   it("concurrent reservation: exactly one of two orders for the same item succeeds", async () => {

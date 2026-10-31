@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server";
 import { adminError, requireAdmin } from "@/lib/admin-guard";
-import { createItem } from "@/lib/store";
+import { parsePageQuery } from "@/lib/pagination";
+import { createItem, listItemsPage } from "@/lib/store";
+
+const STATUSES = ["available", "reserved", "sold"] as const;
+
+export async function GET(request: Request) {
+  try {
+    await requireAdmin();
+    const page = parsePageQuery(request.url, STATUSES);
+    if (!page) {
+      return NextResponse.json({ error: "Parâmetros de paginação inválidos." }, { status: 400 });
+    }
+    const { rows, nextCursor } = await listItemsPage(page);
+    return NextResponse.json({ items: rows, nextCursor });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INVALID_CURSOR") {
+      return NextResponse.json({ error: "Parâmetros de paginação inválidos." }, { status: 400 });
+    }
+    return adminError(error, "Erro ao listar itens.");
+  }
+}
 
 export async function POST(request: Request) {
   try {

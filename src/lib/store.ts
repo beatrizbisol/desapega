@@ -81,9 +81,12 @@ async function releaseExpiredReservations() {
   });
 }
 
-export async function listItems(): Promise<Item[]> {
+/** `hideSold` drops sold items, for the public storefront; the admin lists everything. */
+export async function listItems({ hideSold = false }: { hideSold?: boolean } = {}): Promise<Item[]> {
   await releaseExpiredReservations();
-  const rows = await query<ItemRow>("SELECT * FROM items ORDER BY created_at DESC");
+  const rows = await query<ItemRow>(
+    `SELECT * FROM items ${hideSold ? "WHERE status <> 'sold'" : ""} ORDER BY created_at DESC`,
+  );
   return rows.map(toItem);
 }
 
@@ -224,7 +227,12 @@ export async function updateOrderStatus(
 export const PAGE_DEFAULT = 20;
 export const PAGE_MAX = 100;
 
-export type PageQuery = { limit: number; cursor: string | null; status: string | null };
+export type PageQuery = {
+  limit: number;
+  cursor: string | null;
+  status: string | null;
+  hideSold?: boolean;
+};
 export type Page<T> = { rows: T[]; nextCursor: string | null };
 
 // invariant: a cursor is the (created_at, id) of the last row served, with
@@ -262,6 +270,7 @@ async function listPage<Row extends { id: string }, T>(
     params.push(page.status);
     where.push(`status = $${params.length}`);
   }
+  if (page.hideSold) where.push("status <> 'sold'");
   if (page.cursor) {
     const [createdAt, id] = decodeCursor(page.cursor);
     params.push(createdAt, id);

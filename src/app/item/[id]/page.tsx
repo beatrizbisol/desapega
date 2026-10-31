@@ -16,9 +16,12 @@ type Props = {
 export default async function ItemPage({ params }: Props) {
   const { id } = await params;
   const item = await getItem(id);
+  // why: sold items are off the storefront but keep their page, so links
+  // shared on WhatsApp land on a clear "vendido" notice instead of a 404.
   if (!item) notFound();
 
   const available = item.status === "available";
+  const sold = item.status === "sold";
 
   return (
     <main className="flex-1 bg-[var(--foam)]">
@@ -30,12 +33,32 @@ export default async function ItemPage({ params }: Props) {
           ← Voltar aos itens
         </Link>
 
+        {sold && (
+          <div
+            role="status"
+            className="mt-6 rounded-lg border border-[var(--ocean-ink)] bg-[var(--ocean-ink)] px-5 py-4 text-white"
+          >
+            <p className="font-[family-name:var(--font-display)] text-2xl">
+              Este item já foi vendido
+            </p>
+            <p className="mt-1 text-sm text-white/80">
+              Ele não está mais disponível. Veja os outros itens da vitrine ou
+              fala com a gente pelo WhatsApp.
+            </p>
+          </div>
+        )}
+
         <div className="mt-6 grid gap-10 lg:grid-cols-2 lg:gap-14">
-          <PhotoCarousel photos={item.photos} title={item.title} />
+          <div className={sold ? "opacity-70 grayscale" : undefined}>
+            <PhotoCarousel photos={item.photos} title={item.title} />
+          </div>
 
           <div className="flex flex-col">
             <div className="flex flex-wrap items-center gap-3">
-              <Badge variant={available ? "default" : "secondary"}>
+              <Badge
+                variant={available ? "default" : "secondary"}
+                className={sold ? "bg-[var(--ocean-ink)] text-white uppercase tracking-wide" : undefined}
+              >
                 {statusLabel(item.status)}
               </Badge>
               <span className="text-sm text-[var(--ink-soft)]">1 unidade</span>
@@ -43,7 +66,11 @@ export default async function ItemPage({ params }: Props) {
             <h1 className="mt-4 font-[family-name:var(--font-display)] text-4xl leading-tight text-[var(--ocean-ink)] sm:text-5xl">
               {item.title}
             </h1>
-            <p className="mt-4 text-2xl font-semibold text-[var(--ink)]">
+            <p
+              className={`mt-4 text-2xl font-semibold ${
+                sold ? "text-[var(--ink-soft)] line-through" : "text-[var(--ink)]"
+              }`}
+            >
               {formatBRL(item.price)}
             </p>
             <div className="mt-6 whitespace-pre-wrap text-base leading-relaxed text-[var(--ink-soft)]">
@@ -56,6 +83,13 @@ export default async function ItemPage({ params }: Props) {
                   title={item.title}
                   price={item.price}
                 />
+              ) : sold ? (
+                <Link
+                  href="/#itens"
+                  className="inline-flex min-h-11 items-center rounded-lg bg-[var(--mist)] px-4 py-3 text-sm font-medium text-[var(--ocean-ink)] transition hover:bg-[var(--line)]"
+                >
+                  Ver outros itens disponíveis →
+                </Link>
               ) : (
                 <p className="rounded-lg bg-[var(--mist)] px-4 py-3 text-sm text-[var(--ocean-ink)]">
                   Este item já está {statusLabel(item.status).toLowerCase()}. Se

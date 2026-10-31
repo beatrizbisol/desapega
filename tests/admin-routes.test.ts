@@ -39,6 +39,7 @@ const pngForm = () => {
 };
 
 const operations: Array<[string, () => Promise<Response>]> = [
+  ["GET items", () => itemsRoute.GET(new Request("http://admin.test/api/admin/items"))],
   ["POST items", () => itemsRoute.POST(json("POST", item()))],
   ["PATCH item", () => itemRoute.PATCH(json("PATCH", { price: 50 }), params("x"))],
   ["DELETE item", () => itemRoute.DELETE(json("DELETE"), params("x"))],
@@ -48,7 +49,7 @@ const operations: Array<[string, () => Promise<Response>]> = [
 ];
 
 describe("admin routes", () => {
-  it("401 without session on each of the 6 operations", async () => {
+  it("401 without session on each of the 7 operations", async () => {
     for (const [name, run] of operations) {
       const res = await run();
       expect(res.status, name).toBe(401);
